@@ -2,7 +2,7 @@
 
 A browser-based image processing tool to crop, perspective-correct, adjust, and join photos into clean PDFs and OCR-ready image archives. Built specifically for phone photos of restaurant menus, but fully applicable to any document scanning workflow. Everything runs entirely client-side in the browser—no photos are ever uploaded to a server.
 
-**Live Demo:** [https://<username>.github.io/<repository>/](https://<username>.github.io/<repository>/)
+**Live Demo:** [https://<username>.github.io/<repository>/](https://tarroys.github.io/menu-scanner/)
 
 ---
 
@@ -40,25 +40,3 @@ Each export button downloads exactly one file to avoid browser popup blocks:
 | **Corner magnifier** | Hover cursor over any corner handle |
 
 ---
-
-## Running It
-
-### Hosted (Recommended)
-This is a single static HTML file. Push `index.html` to GitHub and enable Pages:
-> **Settings** → **Pages** → **Deploy from a branch** → `main` / `/ (root)`
-
-### Offline / Local Execution
-* **Windows:** Double-click `START-WINDOWS.bat`. Uses PowerShell's HTTP listener first (falling back to Python, then directly opening the file).
-* **Mac:** Run `START-MAC.command` (ensure executable permissions via `chmod +x START-MAC.command`).
-* **Direct File Open:** You can open `index.html` directly in modern browsers. All dependencies are fetched over HTTPS via CDN.
-
----
-
-## File Structure
-
-```text
-├── index.html          # Entire web application (no build step or bundler needed)
-├── START-WINDOWS.bat   # Windows local HTTP server launcher script
-├── START-MAC.command   # macOS local HTTP server launcher script
-├── HOW-TO-RUN.txt      # Plain-language running instructions for non-technical users
-└── README.md           # Project documentation
