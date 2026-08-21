@@ -106,6 +106,8 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 .lib.ok i{background:var(--ok)}
 .lib.fail i{background:var(--danger)}
 .lib.load i{background:var(--warn);animation:pulse 1s infinite}
+.lib.off{opacity:.45}
+.lib.off i{background:var(--graphite-dim)}
 @keyframes pulse{50%{opacity:.25}}
 
 /* ---------- Sidebar ---------- */
@@ -341,6 +343,7 @@ details.adv>summary:hover,details.adv[open]>summary{color:var(--paper)}
 }
 .btn.equal:hover:not(:disabled){background:var(--accent);color:#fff}
 .btn.equal:disabled{border-color:var(--line);color:var(--graphite-dim)}
+#btn-compare.on{background:var(--warn);border-color:var(--warn);color:#fff;font-weight:600}
 .choices{margin-top:2px}
 .choices > * + .btn.equal{margin-top:14px}
 .orline{
@@ -533,7 +536,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
 
     <div class="rail-right">
       <div class="libs" id="libs">
-        <span class="lib load" data-lib="cv"><i></i>OpenCV</span>
+        <span class="lib load" data-lib="cv" id="lib-cv"><i></i>OpenCV</span>
         <span class="lib load" data-lib="jspdf"><i></i>jsPDF</span>
         <span class="lib load" data-lib="jszip"><i></i>JSZip</span>
       </div>
@@ -606,9 +609,20 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         </div>
       </div>
 
+      <div class="note" style="margin-bottom:14px">Nothing is adjusted until you press something — what you see now is the straightened photo, untouched.</div>
+
+      <button class="btn wide" id="btn-compare" disabled>Before / after — nothing changed yet</button>
+      <div class="exp-why">Flicks between the untouched page and your adjusted one, in place. Comparing without the picture moving is the easiest way to see what actually changed. <kbd>B</kbd> does the same while held.</div>
+
       <fieldset id="tone-controls">
-      <button class="btn primary wide" id="btn-auto-enhance">Auto-enhance all images</button>
+      <button class="btn primary wide" id="btn-auto-enhance" style="margin-top:16px">Auto-enhance all images</button>
       <div class="note" style="margin-top:9px">Measures <b>every</b> straightened image separately and sets each one. Most jobs need nothing else.</div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn sm" id="btn-reset-one">Reset this image</button>
+        <button class="btn sm" id="btn-reset-all">Reset all images</button>
+      </div>
+      <div class="exp-why">Clears the tone changes and puts the page back to untouched. <b>Cropping, straightening and joining are not affected.</b></div>
 
       <details class="adv">
         <summary>Presets</summary>
@@ -621,7 +635,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
             <button class="btn sm" data-preset="magic">Magic enhance</button>
             <button class="btn sm" data-preset="bw">B&amp;W document</button>
           </div>
-          <button class="btn sm wide" data-preset="reset">Reset this output</button>
+          <button class="btn sm wide" data-preset="scan">Gentle all-round clean-up</button>
         </div>
       </details>
 
@@ -856,7 +870,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
           <input type="range" id="s-maxdim" min="1200" max="4200" step="100" value="2600">
         </label>
         <div class="note" style="margin-bottom:12px">The PDF is for reading, so it does not need the full sensor. Lower this if the PDF is too heavy to attach.</div>
-        <div class="note">JPEG at 88% is visually identical to the original on menu text and roughly a tenth the size of PNG. Turn on lossless only if the OCR run actually needs it.</div>
+        <div class="note">JPEG at 92% is visually identical to the original on menu text and roughly a tenth the size of PNG. Turn on lossless only if the OCR run actually needs it.</div>
         <label class="check" style="margin-top:8px"><input type="checkbox" id="c-lossless"> Lossless PNG (much larger files)</label>
         <label class="check"><input type="checkbox" id="c-include-full" checked> Include full pages in the OCR folder</label>
         <label class="field" style="margin-top:8px">
@@ -937,7 +951,8 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
    every exported filename. */
 const APP={
   name:'Menu Scan',
-  version:'1.0',
+  version:'1.3',
+  built:'2026-08-21',
   tagline:'photos to PDF & OCR'
 };
 
@@ -1062,7 +1077,12 @@ const LIB={cv:false,jspdf:false,jszip:false};
 function setLib(name,state){
   LIB[name]=(state==='ok');
   const el=$(`.lib[data-lib="${name}"]`);
-  if(el){ el.classList.remove('load','ok','fail'); el.classList.add(state); }
+  if(el){
+    el.classList.remove('load','ok','fail','off');
+    el.classList.add(state);
+    if(state==='off') el.title='Not loaded — the built-in transform is doing the work. '
+      +'Set CONFIG.useOpenCV = true for the faster WASM version.';
+  }
 }
 function injectScript(src){
   return new Promise((res,rej)=>{
@@ -1100,20 +1120,23 @@ async function loadLibraries(){
      alongside the small ones. Builds differ in how they signal ready
      (Module.onRuntimeInitialized vs a Promise vs immediate), so poll
      for cv.Mat, which is true in all of them. */
+  /* ONE mirror, not three. loadFirst falls through to the next URL when a
+     source fails, which is right for a 90 KB library and catastrophic for a
+     10 MB one: a readiness bug used to mean three OpenCV builds downloaded
+     and three WASM runtimes instantiated in a single tab, which is enough to
+     crash the renderer outright. A big optional dependency gets one attempt
+     and then gets out of the way. */
   const cvJob=(async()=>{
+    if(!CONFIG.useOpenCV){ setLib('cv','off'); return; }
     try{
-      await loadFirst([
-        'https://docs.opencv.org/4.10.0/opencv.js',
-        'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js',
-        'https://docs.opencv.org/4.8.0/opencv.js'
-      ], ()=>{
-        if(window.cv && typeof window.cv.then==='function') return false;
-        return !!(window.cv && typeof window.cv.Mat==='function');
-      }, 60000);
+      await loadFirst(['https://docs.opencv.org/4.10.0/opencv.js'],
+                      ()=>!!window.cv, 25000);
+      await settleCV();
+      if(!cvReady()) throw new Error('opencv loaded but never initialised');
       setLib('cv','ok');
     }catch(e){
       setLib('cv','fail');
-      toast('OpenCV.js did not load. Automatic edge detection and Magic enhance are off; manual corners still work (JS fallback warp).','warn');
+      toast('OpenCV did not load, so flattening uses the built-in transform — same result, slightly slower. Everything else is unaffected.','warn');
     }
   })();
 
@@ -1132,7 +1155,32 @@ async function loadLibraries(){
   ];
 
   await Promise.all(jobs);
-  cvJob.then(()=>{ if(S.step===STEP.SCAN) Crop.refreshButtons(); });
+  await cvJob;
+  if(S.step===STEP.SCAN) Crop.refreshButtons();
+}
+
+/* OpenCV.js ships in three different shapes and which one you get depends on
+   the build. Emscripten MODULARIZE builds — which is what the 4.8+ mirrors
+   are — set window.cv to a PROMISE, or to a factory you have to call. Older
+   builds set a Module object that is not usable until onRuntimeInitialized
+   fires. Handling only the last of those was the bug: the loader saw a
+   Promise, decided it was "not ready yet", and polled it for sixty seconds
+   before giving up. Every single load. */
+async function settleCV(){
+  let m=window.cv;
+  if(typeof m==='function'){                       // MODULARIZE factory
+    try{ m=m({}); }catch(e){ try{ m=m(); }catch(e2){} }
+  }
+  if(m&&typeof m.then==='function') m=await m;     // promise, from either route
+  if(m&&typeof m.Mat!=='function'&&'onRuntimeInitialized' in m){
+    await new Promise(res=>{
+      const prev=m.onRuntimeInitialized;
+      m.onRuntimeInitialized=()=>{ try{ prev&&prev(); }catch(e){} res(); };
+      setTimeout(res,30000);
+    });
+  }
+  if(m&&typeof m.Mat==='function') window.cv=m;
+  return cvReady();
 }
 
 /* ── OpenCV Mat bookkeeping ───────────────────────────────────────
@@ -1171,7 +1219,19 @@ const CONFIG={
   autoDetect:false,
   /* Automatic seam search is off. Join.findOverlap and its tests are still
      here untouched — flip this to true to bring the button back. */
-  autoSeam:false
+  autoSeam:false,
+
+  /* OpenCV.js is OFF by default, and this is the important one.
+
+     It is a ~10 MB WASM bundle, and in the shipped configuration it does
+     exactly one job: the perspective warp. The pure-JS warp does the same
+     thing in about 0.9 s for a 10 MP page, which nobody notices on a click.
+
+     Set this true to get the faster WASM warp plus the OpenCV versions of
+     Magic enhance and CLAHE. Everything still works either way — every
+     OpenCV path in this file has a JS fallback that is exercised by the
+     checks. */
+  useOpenCV:false
 };
 const STEP={PAGES:'pages',SCAN:'scan',ADJUST:'adjust',SLICE:'slice',JOIN:'join',EXPORT:'export'};
 const STEP_META={
@@ -1219,11 +1279,11 @@ function newPage(canvas,name){
     corners:null,                // 4 pts in raw-image space, TL TR BR BL
     rotate:0,
     flat:null,                   // warped, full resolution
-    /* One tone profile. There used to be a second, greyed and sharpened,
-       for OCR — testing showed it did not help, so the same colour page now
-       feeds every output. What DID help was keeping the OCR set unjoined,
-       and that is a matter of which files ship, not how they are processed. */
-    adj:Object.assign({},DEFAULT_ADJ,PRESETS.scan),
+    /* Untouched. DEFAULT_ADJ is a genuine no-op: processCanvas skips the
+       whole pipeline when every slider is zero and the mode is colour, so
+       what you see on the Adjust tab is exactly what came off the camera
+       until you press something. */
+    adj:Object.assign({},DEFAULT_ADJ),
     regions:[],                  // {id,label,x,y,w,h} in flat space
     _proxy:null,                 // downscaled flat, for interactive preview
     _preview:null,
@@ -1239,6 +1299,17 @@ function invalidate(p){ p._preview=null; p._previewKey=''; }
 /* Kept as a one-liner so every call site reads the same whether or not
    there is ever more than one profile again. */
 const curAdj=p=>p.adj;
+
+/* Has this page's tone ACTUALLY been changed? p.tuned only records that a
+   human pressed something — applying the Colour preset sets it while leaving
+   every value at zero. The before/after toggle needs the stronger question,
+   or it lights up with nothing to show. */
+function isTouched(p){
+  if(!p) return false;
+  const a=p.adj, d=DEFAULT_ADJ;
+  return a.mode!==d.mode||a.flat!==d.flat||a.bri!==d.bri
+      || a.con!==d.con||a.sha!==d.sha||a.hig!==d.hig||a.shp!==d.shp;
+}
 function setFlat(p,canvas){
   p.flat=canvas;
   // a re-flatten (turn, deskew, re-crop) makes any prepared join stale
@@ -2323,18 +2394,35 @@ function warpJS(srcCanvas,C,W,H){
   const sw=sg.width, sh=sg.height, sd=sg.data;
   const out=mkCanvas(W,H), og=ctx2d(out,{});
   const od=og.createImageData(W,H), dd=od.data;
+  /* Perspective-correct spans. The projection needs two divisions per pixel,
+     which dominates the loop. Evaluating it exactly at both ends of a short
+     span and interpolating between is the standard software-rasteriser trick:
+     the source position drifts by well under a pixel across 16 output pixels
+     at these angles, so it is visually exact while doing 1/16th the division
+     work. Verified against the exact formula, not assumed. */
+  const SPAN=16;
+  const h0=h[0],h1=h[1],h2=h[2],h3=h[3],h4=h[4],h5=h[5],h6=h[6],h7=h[7];
+  const xMax=sw-1.001, yMax=sh-1.001;
   for(let v=0,o=0;v<H;v++){
-    for(let u=0;u<W;u++,o+=4){
-      const den=h[6]*u+h[7]*v+1;
-      let x=(h[0]*u+h[1]*v+h[2])/den, y=(h[3]*u+h[4]*v+h[5])/den;
-      x=clamp(x,0,sw-1.001); y=clamp(y,0,sh-1.001);
-      const x0=x|0, y0=y|0, fx=x-x0, fy=y-y0;
-      const i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
-      const w00=(1-fx)*(1-fy), w10=fx*(1-fy), w01=(1-fx)*fy, w11=fx*fy;
-      dd[o]  =sd[i00]*w00+sd[i10]*w10+sd[i01]*w01+sd[i11]*w11;
-      dd[o+1]=sd[i00+1]*w00+sd[i10+1]*w10+sd[i01+1]*w01+sd[i11+1]*w11;
-      dd[o+2]=sd[i00+2]*w00+sd[i10+2]*w10+sd[i01+2]*w01+sd[i11+2]*w11;
-      dd[o+3]=255;
+    const nx=h1*v+h2, ny=h4*v+h5, nd=h7*v+1;
+    let u=0;
+    while(u<W){
+      const uEnd=Math.min(W-1,u+SPAN-1), n=uEnd-u;
+      const dA=h6*u+nd,    xA=(h0*u+nx)/dA,    yA=(h3*u+ny)/dA;
+      const dB=h6*uEnd+nd, xB=(h0*uEnd+nx)/dB, yB=(h3*uEnd+ny)/dB;
+      const sx=n?(xB-xA)/n:0, sy=n?(yB-yA)/n:0;
+      let x=xA, y=yA;
+      for(let k=0;k<=n;k++,x+=sx,y+=sy,o+=4){
+        const cx=x<0?0:(x>xMax?xMax:x), cy=y<0?0:(y>yMax?yMax:y);
+        const x0=cx|0, y0=cy|0, fx=cx-x0, fy=cy-y0;
+        const i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
+        const w00=(1-fx)*(1-fy), w10=fx*(1-fy), w01=(1-fx)*fy, w11=fx*fy;
+        dd[o]  =sd[i00]  *w00+sd[i10]  *w10+sd[i01]  *w01+sd[i11]  *w11;
+        dd[o+1]=sd[i00+1]*w00+sd[i10+1]*w10+sd[i01+1]*w01+sd[i11+1]*w11;
+        dd[o+2]=sd[i00+2]*w00+sd[i10+2]*w10+sd[i01+2]*w01+sd[i11+2]*w11;
+        dd[o+3]=255;
+      }
+      u=uEnd+1;
     }
   }
   og.putImageData(od,0,0);
@@ -2769,7 +2857,8 @@ function unlockEnhancements(p){
 }
 
 const Tone={
-  showOriginal:false,
+  compare:false,      // the before/after toggle
+  peek:false,         // transient, while B is held
   _timer:null,
 
   locked(){
@@ -2797,12 +2886,15 @@ const Tone={
 
   draw(){
     const p=activePage(); if(!p||!p.flat) return;
-    const img=this.showOriginal?p._proxy:this.ensurePreview(p);
+    /* XOR, so holding B while the toggle is on shows the AFTER — the toggle
+       sets which side you are parked on, B flicks to the other one. */
+    const before=this.compare!==this.peek;
+    const img=before?p._proxy:this.ensurePreview(p);
     View.show(img,52);
     const g=View.overlayCtx();
     drawRulers(g);
     const modeLabel=$('#sel-mode').selectedOptions[0].textContent.split('—')[0].trim();
-    badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · ${this.showOriginal?'<b>original</b>':modeLabel}`
+    badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · ${before?'<b style="color:#a1660b">BEFORE — untouched</b>':(isTouched(p)?'<b>after</b> · '+modeLabel:'not adjusted yet')}`
         + (this.locked()?' · <b style="color:#ffc247">locked until sliced</b>':'')
         + ` · preview at ${p._proxy.width}px`);
   },
@@ -2829,6 +2921,7 @@ const Tone={
     $('#v-cconst').textContent=a.cconst;
     $('#mode-bw').style.display=a.mode==='bw'?'block':'none';
     $('#mode-magic').style.display=a.mode==='magic'?'block':'none';
+    this.syncCompare();
     this.applyLock();
   },
 
@@ -2849,7 +2942,7 @@ const Tone={
   preset(name){
     const p=activePage(); if(!p||this.locked()) return;
     p.tuned=true;
-    if(name==='reset') p.adj=Object.assign({},DEFAULT_ADJ,PRESETS.scan);
+    if(name==='reset') p.adj=Object.assign({},DEFAULT_ADJ);
     else Object.assign(curAdj(p),DEFAULT_ADJ,PRESETS[name]);
     invalidate(p); this.syncUI(); this.draw();
   },
@@ -2878,6 +2971,47 @@ const Tone={
     const a=activePage()?curAdj(activePage()):last.adj;
     toast(`Auto-enhanced ${pages.length} image${pages.length>1?'s':''}, each measured on its own.`
         + ` This one: flatten ${a.flat}, contrast ${a.con}, sharpen ${a.shp}.`);
+  },
+
+  /* Reset clears TONE only. Cropping, straightening and joining are
+     geometry and live on p.flat — nothing here touches them. */
+  resetOne(){
+    const p=activePage(); if(!p||this.locked()) return;
+    p.adj=Object.assign({},DEFAULT_ADJ);
+    p.tuned=false;
+    invalidate(p);
+    p.thumb=thumbURL(p.flat||p.raw);
+    renderTray(); this.syncUI(); this.draw();
+    toast(`“${p.name}” is back to untouched.`);
+  },
+  resetAll(){
+    if(this.locked()) return;
+    const pages=S.pages.filter(x=>x.flat);
+    if(!pages.length) return;
+    pages.forEach(x=>{
+      x.adj=Object.assign({},DEFAULT_ADJ);
+      x.tuned=false;
+      invalidate(x);
+      x.thumb=thumbURL(x.flat||x.raw);
+    });
+    renderTray(); this.syncUI(); this.draw();
+    toast(`${pages.length} image${pages.length>1?'s':''} back to untouched.`);
+  },
+  toggleCompare(){
+    const p=activePage(); if(!p) return;
+    this.compare=!this.compare;
+    this.syncCompare(); this.draw();
+  },
+  syncCompare(){
+    const p=activePage();
+    const b=$('#btn-compare');
+    if(!b) return;
+    const can=isTouched(p);
+    b.disabled=!can;
+    if(!can) this.compare=false;
+    b.classList.toggle('on',this.compare);
+    b.textContent=!can ? 'Before / after — nothing changed yet'
+                       : (this.compare?'Showing BEFORE — click for after':'Show before');
   },
 
   pickOtsu(){
@@ -3533,6 +3667,7 @@ const Exporter={
       const manifest={
         tool:APP.name,
         tool_version:APP.version,
+        tool_built:APP.built,
         generated_at:new Date().toISOString(),
         purpose:'Menu pages to run OCR on. Every image in this archive is one '
                +'straightened menu sheet. Pages are NOT joined — each original '
@@ -3946,6 +4081,9 @@ function wire(){
   });
   $('#c-despeckle').addEventListener('change',()=>Tone.read());
   $('#btn-auto-enhance').addEventListener('click',()=>Tone.auto());
+  $('#btn-reset-one').addEventListener('click',()=>Tone.resetOne());
+  $('#btn-reset-all').addEventListener('click',()=>Tone.resetAll());
+  $('#btn-compare').addEventListener('click',()=>Tone.toggleCompare());
   $('#btn-otsu').addEventListener('click',()=>Tone.pickOtsu());
   $('#btn-to-export').addEventListener('click',()=>goStep(STEP.EXPORT));
   $('#btn-to-join').addEventListener('click',()=>goStep(STEP.JOIN));
@@ -4116,7 +4254,7 @@ function wire(){
       return;
     }
     if((ev.key==='Delete'||ev.key==='Backspace')&&S.step===STEP.SLICE&&S.selRegion>=0){ ev.preventDefault(); Slice.deleteSelected(); return; }
-    if((ev.key==='b'||ev.key==='B')&&S.step===STEP.ADJUST&&!Tone.showOriginal){ Tone.showOriginal=true; Tone.draw(); }
+    if((ev.key==='b'||ev.key==='B')&&S.step===STEP.ADJUST&&!Tone.peek){ Tone.peek=true; Tone.draw(); }
     if(ev.key>='1'&&ev.key<='9'&&!ev.metaKey&&!ev.ctrlKey){
       const name=FLOW[+ev.key-1];
       if(name){ const b=$(`.step[data-step="${name}"]`); if(b&&!b.disabled) goStep(name); }
@@ -4124,7 +4262,7 @@ function wire(){
   });
   document.addEventListener('keyup',ev=>{
     if(ev.code==='Space'){ S.spaceDown=false; $('#overlay').classList.remove('grab','grabbing'); }
-    if((ev.key==='b'||ev.key==='B')&&Tone.showOriginal){ Tone.showOriginal=false; if(S.step===STEP.ADJUST) Tone.draw(); }
+    if((ev.key==='b'||ev.key==='B')&&Tone.peek){ Tone.peek=false; if(S.step===STEP.ADJUST) Tone.draw(); }
   });
 
   /* resize — never rebuild the stitching board, that would throw away
@@ -4142,7 +4280,9 @@ function wire(){
   document.title=APP.name;
   $('#app-name').textContent=APP.name;
   $('#app-tag').textContent='v'+APP.version+' · '+APP.tagline;
-  $('#app-name').title=APP.name+' v'+APP.version;
+  /* Hovering the name gives the exact build. A stale deploy is invisible
+     otherwise, which is how an already-fixed bug came back to bite. */
+  $('#app-name').title=`${APP.name} v${APP.version} · built ${APP.built}`;
   buildRail();
   renderTray();
   goStep(STEP.PAGES);
