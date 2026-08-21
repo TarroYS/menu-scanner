@@ -1,0 +1,4162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Menu Scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS
+   Palette: reproduction / press-room. Two accents, each with a job.
+   registration (cyan-teal) = alignment & corners
+   crop (magenta)           = slice regions
+   ============================================================ */
+/* Light, minimal. One accent doing all the work; grey carries structure.
+   Warm-neutral rather than blue-grey so scanned paper on screen reads as
+   paper rather than as a slightly wrong white. */
+:root{
+  --bg:#f4f4f2;
+  --surface:#ffffff;
+  --surface-2:#faf9f7;
+  --press:#f2f1ee;
+  --press-hi:#e9e7e3;
+  --line:#e2e0db;
+  --line-soft:#eeece8;
+  --rule:#e2e0db;
+  --rule-soft:#eeece8;
+  --plate:#ffffff;
+  --ink:#f4f4f2;
+  --paper:#22211f;
+  --graphite:#6b6862;
+  --graphite-dim:#96938c;
+  --accent:#0f766e;
+  --accent-soft:#0f766e14;
+  --accent-hi:#0b5d56;
+  --registration:#0f766e;
+  --registration-dim:#0f766e22;
+  --crop:#a3512a;
+  --crop-dim:#a3512a1f;
+  --warn:#a1660b;
+  --danger:#b3261e;
+  --ok:#2f7d32;
+  --r:5px;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg);color:var(--paper);font-family:var(--sans);
+  font-size:13.5px;line-height:1.5;-webkit-font-smoothing:antialiased;overflow:hidden;
+}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--registration);outline-offset:2px}
+
+/* ============================================================
+   APP FRAME
+   ============================================================ */
+#app{
+  height:100vh;display:grid;
+  grid-template-columns:312px 1fr;
+  grid-template-rows:52px 1fr 152px;
+  grid-template-areas:"rail rail" "side stage" "side tray";
+}
+@media (max-width:1080px){
+  #app{grid-template-columns:264px 1fr}
+}
+
+/* ---------- Step rail ---------- */
+#rail{
+  grid-area:rail;display:flex;align-items:stretch;
+  background:var(--plate);border-bottom:1px solid var(--rule);
+}
+.brand{
+  display:flex;align-items:center;gap:9px;padding:0 18px 0 16px;
+  border-right:1px solid var(--rule);flex:0 0 auto;
+}
+.brand .mark{width:16px;height:16px;flex:0 0 auto}
+.brand b{font-family:var(--cond);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:14px}
+.brand span{font-family:var(--mono);font-size:10px;color:var(--graphite-dim);letter-spacing:.04em}
+.steps{display:flex;flex:1 1 auto;min-width:0}
+.step{
+  position:relative;display:flex;align-items:center;gap:9px;
+  padding:0 20px;background:none;border:0;border-right:1px solid var(--rule-soft);
+  cursor:pointer;color:var(--graphite);white-space:nowrap;
+}
+.step:disabled{cursor:not-allowed;opacity:.4}
+.step .n{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  width:19px;height:19px;display:grid;place-items:center;
+  border:1px solid var(--rule);border-radius:50%;color:var(--graphite-dim);
+}
+.step .t{font-family:var(--cond);font-weight:600;letter-spacing:.07em;text-transform:uppercase;font-size:12.5px}
+.step:hover:not(:disabled){color:var(--paper);background:var(--surface-2)}
+.step.done .n{border-color:var(--registration);color:var(--registration)}
+.step.on{color:var(--paper)}
+.step.on .n{background:var(--accent);border-color:var(--accent);color:#fff}
+.step.on::after{content:"";position:absolute;inset:auto 0 0 0;height:2px;background:var(--accent)}
+.rail-right{display:flex;align-items:center;gap:14px;padding:0 16px;border-left:1px solid var(--rule);flex:0 0 auto}
+.libs{display:flex;gap:9px}
+.lib{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:9.5px;color:var(--graphite-dim);letter-spacing:.03em}
+.lib i{width:5px;height:5px;border-radius:50%;background:var(--rule);display:block;transition:background .2s}
+.lib.ok i{background:var(--ok)}
+.lib.fail i{background:var(--danger)}
+.lib.load i{background:var(--warn);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+
+/* ---------- Sidebar ---------- */
+#side{
+  grid-area:side;background:var(--plate);border-right:1px solid var(--rule);
+  overflow-y:auto;overflow-x:hidden;
+}
+#side::-webkit-scrollbar{width:9px}
+#side::-webkit-scrollbar-thumb{background:#d8d6d1;border-radius:9px;border:3px solid var(--plate)}
+.pane{display:none;padding:16px 16px 22px}
+.pane.on{display:block}
+.eyebrow{
+  font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--graphite-dim);
+  display:flex;align-items:center;gap:8px;margin:0 0 10px;
+}
+.eyebrow::after{content:"";flex:1;height:1px;background:var(--rule-soft)}
+.eyebrow + .eyebrow,.grp + .grp{margin-top:20px}
+.hint{color:var(--graphite);font-size:12px;margin:0 0 12px}
+.hint b{color:var(--paper);font-weight:600}
+kbd{
+  font-family:var(--mono);font-size:10px;background:var(--press);
+  border:1px solid var(--rule);border-radius:2px;padding:1px 4px;color:var(--paper);
+}
+
+/* ---------- Controls ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:8px 12px;background:var(--press);border:1px solid var(--rule);
+  border-radius:var(--r);cursor:pointer;font-weight:500;font-size:12.5px;
+  transition:background .13s,border-color .13s,color .13s;
+}
+.btn:hover:not(:disabled){background:var(--press-hi);border-color:#3a4152}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.wide{width:100%}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.primary:hover:not(:disabled){background:var(--accent-hi);border-color:var(--accent-hi)}
+.btn.crop{background:var(--crop);border-color:var(--crop);color:#fff;font-weight:600}
+.btn.crop:hover:not(:disabled){background:#8c4423;border-color:#8c4423}
+.btn.danger{color:var(--danger)}
+.btn.danger:hover:not(:disabled){background:#b3261e12;border-color:#b3261e55}
+.btn.sm{padding:6px 9px;font-size:11.5px}
+.row{display:flex;gap:7px}
+.row > *{flex:1;min-width:0}
+.stack > * + *{margin-top:7px}
+
+label.field{display:block;margin-bottom:11px}
+label.field > .lab{
+  display:flex;justify-content:space-between;align-items:baseline;
+  font-size:11.5px;color:var(--graphite);margin-bottom:5px;
+}
+label.field .val{font-family:var(--mono);font-size:11px;color:var(--paper);font-variant-numeric:tabular-nums}
+input[type=range]{
+  -webkit-appearance:none;appearance:none;width:100%;height:16px;background:none;cursor:pointer;margin:0;
+}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:var(--rule);border-radius:2px}
+input[type=range]::-moz-range-track{height:2px;background:var(--rule);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:13px;height:13px;margin-top:-5.5px;border-radius:50%;
+  background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px var(--rule);
+}
+input[type=range]::-moz-range-thumb{
+  width:13px;height:13px;border-radius:50%;background:var(--accent);
+  border:2px solid #fff;box-shadow:0 0 0 1px var(--rule);
+}
+input[type=range]:hover::-webkit-slider-thumb{background:var(--registration)}
+input[type=range]:hover::-moz-range-thumb{background:var(--registration)}
+select,input[type=text],input[type=number]{
+  width:100%;padding:7px 9px;background:var(--press);border:1px solid var(--rule);
+  border-radius:var(--r);font-size:12.5px;
+}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+.seg button{padding:8px 6px;background:var(--press);border:0;cursor:pointer;font-size:11.5px;color:var(--graphite)}
+.seg button:hover{background:var(--press-hi);color:var(--paper)}
+.seg button.on{background:var(--accent);color:#fff;font-weight:600}
+.check{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--graphite);cursor:pointer;padding:3px 0}
+.check input{accent-color:var(--registration);width:14px;height:14px;margin:0}
+.check:hover{color:var(--paper)}
+fieldset{border:0;padding:0;margin:0;min-width:0}
+#tone-controls[disabled]{opacity:.42;pointer-events:none;filter:saturate(.25)}
+input[type=range]:disabled{opacity:.4;cursor:not-allowed}
+.lockbox{
+  border:1px solid var(--rule);border-left:2px solid var(--warn);
+  border-radius:0 var(--r) var(--r) 0;background:var(--press);
+  padding:12px 13px;margin-bottom:18px;
+}
+.lockbox .eyebrow{margin-bottom:8px;color:var(--warn)}
+.lockbox .eyebrow::after{background:#ffc24733}
+.lockbox .hint{margin-bottom:11px}
+details.adv{border-top:1px solid var(--line-soft);margin-top:16px;padding-top:4px}
+details.adv>summary{
+  list-style:none;cursor:pointer;padding:9px 0 8px;
+  font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--graphite-dim);display:flex;align-items:center;gap:7px;
+}
+details.adv>summary::-webkit-details-marker{display:none}
+details.adv>summary::before{content:"+";font-size:12px;line-height:1;width:10px}
+details.adv[open]>summary::before{content:"\2013"}
+details.adv>summary:hover,details.adv[open]>summary{color:var(--paper)}
+.drop{
+  border:1px dashed var(--rule);border-radius:var(--r);padding:20px 14px;text-align:center;
+  cursor:pointer;transition:border-color .15s,background .15s;
+}
+.drop:hover,.drop.over{border-color:var(--registration);background:var(--registration-dim)}
+.drop .big{font-family:var(--cond);font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:12.5px}
+.drop .sub{font-family:var(--mono);font-size:10px;color:var(--graphite-dim);margin-top:4px}
+.note{
+  font-size:11.5px;color:var(--graphite);background:var(--press);
+  border-left:2px solid var(--rule);padding:8px 10px;border-radius:0 var(--r) var(--r) 0;
+}
+.note.warn{border-left-color:var(--warn)}
+.readout{font-family:var(--mono);font-size:10.5px;color:var(--graphite);line-height:1.7;font-variant-numeric:tabular-nums}
+.readout b{color:var(--paper);font-weight:500}
+
+/* ---------- Inbox / region lists ---------- */
+.list{border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+.list:empty{display:none}
+.item{
+  display:flex;align-items:center;gap:9px;padding:7px 9px;background:var(--press);
+  border-bottom:1px solid var(--rule-soft);font-size:12px;
+}
+.item:last-child{border-bottom:0}
+.item .sw{
+  width:26px;height:26px;flex:0 0 auto;border:1px solid var(--rule);border-radius:2px;
+  background-size:cover;background-position:center;background-color:#fff;
+}
+.item .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .mt{font-family:var(--mono);font-size:10px;color:var(--graphite-dim)}
+.item .x{
+  background:none;border:0;color:var(--graphite-dim);cursor:pointer;padding:2px 4px;line-height:1;font-size:14px;
+}
+.item .x:hover{color:var(--danger)}
+.item.sel{background:var(--press-hi);box-shadow:inset 2px 0 0 var(--crop)}
+.item.sel .idx{color:var(--crop)}
+.item .idx{font-family:var(--mono);font-size:10px;color:var(--graphite-dim);width:16px;flex:0 0 auto}
+
+/* ============================================================
+   STAGE — the copy stand
+   ============================================================ */
+#stage{
+  grid-area:stage;position:relative;overflow:hidden;
+  background:
+    linear-gradient(#00000006 1px,transparent 1px) 0 0/34px 34px,
+    linear-gradient(90deg,#00000006 1px,transparent 1px) 0 0/34px 34px,
+    #eceae6;
+}
+#view,#overlay{position:absolute;inset:0;width:100%;height:100%;display:block}
+#overlay{touch-action:none}
+#overlay.crop-cursor{cursor:crosshair}
+/* !important because the hover handlers write style.cursor inline, and an
+   inline style beats a class — which is why the hand never appeared. */
+#overlay.grab{cursor:grab!important}
+#overlay.grabbing{cursor:grabbing!important}
+#pagegrid{
+  position:absolute;inset:0;z-index:5;display:none;overflow-y:auto;padding:26px 30px;
+  background:var(--bg);
+}
+#pagegrid.on{display:block}
+.pgrid-head{
+  display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap;
+}
+.pgrid-head h2{
+  margin:0;font-family:var(--cond);font-weight:700;letter-spacing:.04em;
+  text-transform:uppercase;font-size:17px;color:var(--paper);
+}
+.pgrid-head p{margin:0;color:var(--graphite);font-size:13px}
+.pgrid-head b{color:var(--accent)}
+.pgrid{display:flex;flex-wrap:wrap;gap:16px;align-content:flex-start;align-items:flex-start}
+.pcard{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:10px;cursor:grab;position:relative;transition:border-color .12s,box-shadow .12s;
+}
+.pcard:hover{border-color:var(--graphite-dim);box-shadow:0 2px 10px #00000012}
+.pcard.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.pcard.dragging{opacity:.35}
+.pcard.drop-before{box-shadow:-3px 0 0 var(--accent)}
+.pcard.drop-after{box-shadow:3px 0 0 var(--accent)}
+.pcard .th{
+  display:block;width:100%;background:#fff;
+  border:1px solid var(--line-soft);border-radius:3px;
+}
+.pcard .seq{
+  position:absolute;top:-11px;left:-11px;width:32px;height:32px;border-radius:50%;
+  background:var(--accent);color:#fff;font-family:var(--mono);font-size:15px;font-weight:600;
+  display:grid;place-items:center;box-shadow:0 2px 6px #0000002a;border:2px solid var(--bg);
+}
+/* Dragging is invisible to anyone who does not try it, so give every card
+   explicit move controls too. */
+.pcard .mv{
+  display:flex;gap:6px;margin-top:8px;
+}
+.pcard .mv button{
+  flex:1;padding:7px 0;background:var(--press);border:1px solid var(--line);
+  border-radius:var(--r);cursor:pointer;font-size:14px;line-height:1;color:var(--paper);
+}
+.pcard .mv button:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}
+.pcard .mv button:disabled{opacity:.3;cursor:not-allowed}
+.pcard .grip{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:11px;color:var(--graphite-dim);letter-spacing:2px;
+  pointer-events:none;
+}
+.pcard.out .seq{background:var(--graphite-dim)}
+.pcard.out{opacity:.55}
+.pcard .nm{
+  font-size:11.5px;margin-top:7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--paper);
+}
+.pcard .st{
+  font-family:var(--mono);font-size:9.5px;color:var(--graphite-dim);margin-top:2px;
+  display:flex;justify-content:space-between;gap:6px;
+}
+.pcard .st b{font-weight:600}
+.pcard .st .yes{color:var(--ok)}
+.pcard .st .no{color:var(--warn)}
+.pcard .x{
+  position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:4px;
+  background:#ffffffdd;border:1px solid var(--line);color:var(--graphite);
+  display:none;place-items:center;cursor:pointer;font-size:13px;line-height:1;padding:0;
+}
+.pcard:hover .x{display:grid}
+.pcard .x:hover{color:var(--danger);border-color:#b3261e55}
+.pgrid-empty{color:var(--graphite);font-size:13px}
+/* Peers, not a primary and its runners-up: identical weight, outlined so
+   the group reads as "pick one" rather than "here is the main action". */
+.exp-why{
+  font-size:11.5px;line-height:1.5;color:var(--graphite);
+  margin-top:6px;padding-left:11px;border-left:2px solid var(--line);
+}
+.exp-why b{color:var(--paper);font-weight:600}
+.btn.equal{
+  background:var(--surface);border:1.5px solid var(--accent);color:var(--accent);
+  font-weight:600;padding:11px 12px;
+}
+.btn.equal:hover:not(:disabled){background:var(--accent);color:#fff}
+.btn.equal:disabled{border-color:var(--line);color:var(--graphite-dim)}
+.choices{margin-top:2px}
+.choices > * + .btn.equal{margin-top:14px}
+.orline{
+  display:flex;align-items:center;gap:9px;margin:11px 0;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--graphite-dim);
+}
+.orline::before,.orline::after{content:"";flex:1;height:1px;background:var(--line)}
+#zoomhud{
+  position:absolute;bottom:12px;right:12px;z-index:4;display:none;align-items:center;gap:1px;
+  background:#ffffffee;border:1px solid var(--rule);border-radius:var(--r);
+  backdrop-filter:blur(6px);overflow:hidden;box-shadow:0 1px 3px #00000010;
+}
+#zoomhud.on{display:flex}
+#zoomhud button{
+  background:none;border:0;color:var(--graphite);cursor:pointer;padding:5px 9px;
+  font-family:var(--mono);font-size:11px;line-height:1;
+}
+#zoomhud button:hover{background:var(--press);color:var(--paper)}
+#zoomhud .pct{
+  font-family:var(--mono);font-size:10px;color:var(--paper);padding:0 8px;
+  min-width:48px;text-align:center;font-variant-numeric:tabular-nums;
+}
+#stage-empty{
+  position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;
+}
+#stage-empty .big{
+  font-family:var(--cond);font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  font-size:15px;color:var(--graphite);
+}
+#stage-empty .sub{font-family:var(--mono);font-size:11px;color:var(--graphite-dim);margin-top:7px}
+.stage-badge{
+  position:absolute;top:10px;left:12px;z-index:3;display:flex;gap:7px;align-items:center;
+  font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--graphite);
+  background:#ffffffdd;border:1px solid var(--rule);border-radius:var(--r);padding:4px 8px;
+  backdrop-filter:blur(6px);pointer-events:none;box-shadow:0 1px 3px #00000010;
+}
+.stage-badge b{color:var(--paper);font-weight:500}
+
+/* ---------- Scan-line spinner ---------- */
+#busy{
+  position:absolute;inset:0;z-index:20;display:none;place-items:center;
+  background:#f4f4f2d9;backdrop-filter:blur(2px);
+}
+#busy.on{display:grid}
+body.is-busy #side,
+body.is-busy #rail .steps{pointer-events:none;opacity:.55}
+.scanbox{width:min(300px,72vw);text-align:center}
+.scanbar{
+  position:relative;height:3px;background:var(--rule);border-radius:3px;overflow:hidden;margin-bottom:12px;
+}
+.scanbar::after{
+  content:"";position:absolute;inset:0 auto 0 0;width:34%;
+  background:linear-gradient(90deg,transparent,var(--registration),transparent);
+  animation:sweep 1.1s cubic-bezier(.55,.1,.45,.9) infinite;
+}
+@keyframes sweep{0%{transform:translateX(-110%)}100%{transform:translateX(400%)}}
+#busy-msg{
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite);
+}
+
+/* ============================================================
+   TRAY — contact sheet of pages
+   ============================================================ */
+#tray{
+  grid-area:tray;background:var(--plate);border-top:1px solid var(--rule);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.tray-head{
+  display:flex;align-items:center;gap:12px;padding:7px 14px;border-bottom:1px solid var(--rule-soft);flex:0 0 auto;
+}
+.tray-head .eyebrow{margin:0}
+/* groups sit side by side in one horizontal scroller */
+.tray-scroll{flex:1;display:flex;gap:22px;padding:8px 14px;overflow-x:auto;align-items:flex-start}
+.tgroup{display:flex;flex-direction:column;gap:5px;flex:0 0 auto}
+.tgroup+.tgroup{border-left:1px solid var(--rule);padding-left:22px}
+.tglabel{
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--graphite-dim);
+}
+.tglabel span{
+  background:var(--press);border:1px solid var(--rule);border-radius:8px;
+  padding:0 5px;line-height:13px;color:var(--paper);
+}
+.trow{display:flex;gap:9px;align-items:flex-start}
+.tghint{font-family:var(--mono);font-size:9px;color:var(--graphite-dim);letter-spacing:.04em}
+.pg.dragging{opacity:.35}
+.pg.drop-before{box-shadow:-3px 0 0 var(--registration)}
+.pg.drop-after{box-shadow:3px 0 0 var(--registration)}
+.pg[draggable=true]{cursor:grab}
+.pg.isjoin .im{border-color:var(--registration)}
+.pg .jtag{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  background:var(--accent);color:#fff;font-family:var(--mono);font-size:8px;
+  font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:2px;padding:0 3px;line-height:12px;
+}
+.pg .pick{
+  position:absolute;top:3px;right:3px;width:16px;height:16px;border-radius:3px;
+  background:#ffffffee;border:1px solid var(--rule);color:var(--ok);
+  display:grid;place-items:center;cursor:pointer;font-size:10px;line-height:1;padding:0;font-weight:700;
+}
+.pg .pick:hover{border-color:var(--registration)}
+.pg.used .pick{color:var(--graphite-dim)}
+.pg .ok{
+  position:absolute;bottom:20px;right:3px;width:13px;height:13px;border-radius:50%;
+  background:var(--ok);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;
+  display:grid;place-items:center;line-height:1;
+}
+.pg .todo{
+  position:absolute;bottom:20px;right:3px;width:13px;height:13px;border-radius:50%;
+  background:var(--press);border:1px solid var(--warn);color:var(--warn);
+  font-family:var(--mono);font-size:11px;display:grid;place-items:center;line-height:1;
+}
+.tray-scroll::-webkit-scrollbar{height:8px}
+.tray-scroll::-webkit-scrollbar-thumb{background:var(--press-hi);border-radius:8px}
+.pg{
+  position:relative;flex:0 0 auto;width:62px;cursor:pointer;background:none;border:0;padding:0;text-align:left;
+}
+.pg .im{
+  width:62px;height:62px;background:#fff center/contain no-repeat;
+  border:1px solid var(--rule);border-radius:1px;transition:border-color .13s,box-shadow .13s;
+}
+.pg:hover .im{border-color:var(--graphite-dim)}
+.pg.on .im{border-color:var(--registration);box-shadow:0 0 0 2px var(--registration-dim)}
+.pg .cap{
+  font-family:var(--mono);font-size:9.5px;color:var(--graphite-dim);margin-top:4px;
+  display:flex;justify-content:space-between;gap:4px;
+}
+.pg.on .cap{color:var(--registration)}
+.pg .rgn{
+  position:absolute;top:3px;right:23px;background:var(--crop);color:#fff;
+  font-family:var(--mono);font-size:9px;font-weight:600;border-radius:2px;padding:0 3px;line-height:13px;
+}
+.pg.used .im{opacity:.32}
+.pg .joined{
+  position:absolute;bottom:20px;left:3px;width:13px;height:13px;border-radius:50%;
+  background:var(--accent);color:#fff;font-family:var(--mono);font-size:9px;
+  font-weight:700;display:grid;place-items:center;line-height:1;
+}
+.pg .unver{
+  position:absolute;bottom:20px;right:23px;width:13px;height:13px;border-radius:50%;
+  background:var(--warn);color:#fff;font-family:var(--mono);font-size:9px;font-weight:700;
+  display:grid;place-items:center;line-height:1;
+}
+.pg .del{
+  position:absolute;top:3px;left:3px;width:15px;height:15px;border-radius:3px;
+  background:#ffffffee;border:1px solid var(--rule);color:var(--graphite);
+  display:none;place-items:center;cursor:pointer;font-size:11px;line-height:1;padding:0;
+}
+.pg:hover .del{display:grid}
+.pg .del:hover{color:var(--danger);border-color:#ff5f5f66}
+.tray-empty{
+  font-family:var(--mono);font-size:10.5px;color:var(--graphite-dim);
+  align-self:center;padding-left:2px;letter-spacing:.04em;
+}
+
+/* ---------- Toast ---------- */
+#toasts{position:fixed;bottom:16px;right:16px;z-index:60;display:flex;flex-direction:column;gap:7px;align-items:flex-end}
+.toast{
+  background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--accent);
+  border-radius:0 var(--r) var(--r) 0;padding:9px 13px;font-size:12.5px;max-width:340px;
+  box-shadow:0 6px 20px #00000018;animation:tin .18s ease-out;
+}
+.toast.err{border-left-color:var(--danger)}
+.toast.warn{border-left-color:var(--warn)}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::after,*::before{animation-duration:.001ms!important;transition-duration:.001ms!important}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ STEP RAIL ══ -->
+  <header id="rail">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <rect x="2.2" y="1.6" width="11.6" height="12.8" rx="1.4" stroke="#0f766e" stroke-width="1.3"/>
+        <path d="M5 5.6h6M5 8h6M5 10.4h3.6" stroke="#0f766e" stroke-width="1.1" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <b id="app-name">Menu Scan</b><br><span id="app-tag">photos to PDF &amp; OCR</span>
+      </div>
+    </div>
+
+    <nav class="steps" id="steps"></nav>
+
+    <div class="rail-right">
+      <div class="libs" id="libs">
+        <span class="lib load" data-lib="cv"><i></i>OpenCV</span>
+        <span class="lib load" data-lib="jspdf"><i></i>jsPDF</span>
+        <span class="lib load" data-lib="jszip"><i></i>JSZip</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside id="side">
+
+    <!-- ─── 1 · STITCH ─── -->
+    <section class="pane" data-pane="scan">
+      <div class="eyebrow">Straighten this page</div>
+      <p class="hint">Drag the four circles onto the menu's corners, then flatten. A magnifier appears when you hover a circle.</p>
+
+      <button class="btn wide" id="btn-detect" style="display:none">Find the edges for me</button>
+      <div class="choices">
+        <button class="btn equal wide" id="btn-flatten">Flatten this page</button>
+        <div class="exp-why">The menu is at an angle, or there is background around it. Drag the four circles onto its corners first.</div>
+        <div class="orline">or</div>
+        <button class="btn equal wide" id="btn-asis">Use as-is</button>
+        <div class="exp-why">The photo is already square-on and cropped. Nothing is resampled, so this keeps every original pixel.</div>
+      </div>
+
+      <div class="stack" id="scan-result" style="display:none;margin-top:10px">
+        <div class="note" style="border-left-color:var(--ok)">This is the flattened result. Happy with it?</div>
+        <button class="btn primary wide" id="btn-next-page">Next page</button>
+        <button class="btn wide" id="btn-edit-corners">Edit the corners again</button>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm" id="btn-turn">↻ Turn</button>
+        <button class="btn sm" id="btn-turn-back">↺ Back</button>
+      </div>
+
+      <details class="adv">
+        <summary>Corner tools</summary>
+        <div class="row">
+          <button class="btn sm" id="btn-corners-full">Whole photo</button>
+          <button class="btn sm" id="btn-corners-inset">Inset 6%</button>
+        </div>
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="c-force-portrait"> Force portrait</label>
+        <label class="field" style="margin-top:8px">
+          <span class="lab"><span>Fine rotation</span><span class="val" id="v-rot">0°</span></span>
+          <input type="range" id="s-rot" min="-8" max="8" step="0.25" value="0">
+        </label>
+        <div class="readout" id="corner-readout">—</div>
+        <div class="note" style="margin-top:9px">Click a circle then <kbd>←↑↓→</kbd> nudges 1&nbsp;px, <kbd>Shift</kbd> 10&nbsp;px.</div>
+      </details>
+
+      <details class="adv" id="det-settings" style="display:none">
+        <summary>Edge detection settings</summary>
+        <label class="field">
+          <span class="lab"><span>Edge threshold</span><span class="val" id="v-canny">75</span></span>
+          <input type="range" id="s-canny" min="20" max="180" step="5" value="75">
+        </label>
+        <label class="field">
+          <span class="lab"><span>Smoothing</span><span class="val" id="v-blur">5 px</span></span>
+          <input type="range" id="s-blur" min="1" max="15" step="2" value="5">
+        </label>
+      </details>
+    </section>
+
+    <section class="pane" data-pane="adjust">
+      <div id="tone-lock" class="lockbox" style="display:none">
+        <div class="eyebrow">Locked for now</div>
+        <p class="hint">Slice the page into sections first. That way you can see where the real gaps are before the colours change.</p>
+        <div class="stack">
+          <button class="btn wide" id="btn-lock-goslice">Take me to slicing</button>
+          <button class="btn wide" id="btn-lock-override">Skip slicing — unlock these controls</button>
+        </div>
+      </div>
+
+      <fieldset id="tone-controls">
+      <button class="btn primary wide" id="btn-auto-enhance">Auto-enhance all images</button>
+      <div class="note" style="margin-top:9px">Measures <b>every</b> straightened image separately and sets each one. Most jobs need nothing else.</div>
+
+      <details class="adv">
+        <summary>Presets</summary>
+        <div class="stack">
+          <div class="row">
+            <button class="btn sm" data-preset="color">Colour</button>
+            <button class="btn sm" data-preset="gray">Greyscale</button>
+          </div>
+          <div class="row">
+            <button class="btn sm" data-preset="magic">Magic enhance</button>
+            <button class="btn sm" data-preset="bw">B&amp;W document</button>
+          </div>
+          <button class="btn sm wide" data-preset="reset">Reset this output</button>
+        </div>
+      </details>
+
+      <details class="adv">
+        <summary>Mode</summary>
+        <select id="sel-mode">
+          <option value="color">Colour — as photographed</option>
+          <option value="gray">Greyscale</option>
+          <option value="clahe">Enhance colour (CLAHE)</option>
+          <option value="magic">Magic enhance — adaptive threshold</option>
+          <option value="bw">B&amp;W document — hard threshold</option>
+        </select>
+        <div id="mode-bw" style="display:none;margin-top:11px">
+          <label class="field">
+            <span class="lab"><span>Threshold</span><span class="val" id="v-thresh">160</span></span>
+            <input type="range" id="s-thresh" min="40" max="230" step="1" value="160">
+          </label>
+          <button class="btn sm wide" id="btn-otsu">Pick threshold automatically (Otsu)</button>
+        </div>
+        <div id="mode-magic" style="display:none;margin-top:11px">
+          <label class="field">
+            <span class="lab"><span>Detail window</span><span class="val" id="v-block">31 px</span></span>
+            <input type="range" id="s-block" min="7" max="99" step="2" value="31">
+          </label>
+          <label class="field">
+            <span class="lab"><span>Ink bias</span><span class="val" id="v-cconst">9</span></span>
+            <input type="range" id="s-cconst" min="-6" max="30" step="1" value="9">
+          </label>
+          <label class="check"><input type="checkbox" id="c-despeckle" checked> Remove speckle</label>
+        </div>
+      </details>
+
+      <details class="adv">
+        <summary>Lighting by hand</summary>
+        <label class="field">
+          <span class="lab"><span>Flatten lighting</span><span class="val" id="v-flat">0</span></span>
+          <input type="range" id="s-flat" min="0" max="100" step="1" value="0">
+        </label>
+        <div class="note" style="margin-bottom:12px">Divides out the lighting gradient without turning the page black-and-white. Fixes shadowed folds and ceiling-light falloff that Brightness and Contrast cannot touch.</div>
+        <label class="field">
+          <span class="lab"><span>Brightness</span><span class="val" id="v-bri">0</span></span>
+          <input type="range" id="s-bri" min="-100" max="100" step="1" value="0">
+        </label>
+        <label class="field">
+          <span class="lab"><span>Contrast</span><span class="val" id="v-con">0</span></span>
+          <input type="range" id="s-con" min="-100" max="100" step="1" value="0">
+        </label>
+        <label class="field">
+          <span class="lab"><span>Shadows</span><span class="val" id="v-sha">0</span></span>
+          <input type="range" id="s-sha" min="-100" max="100" step="1" value="0">
+        </label>
+        <label class="field">
+          <span class="lab"><span>Highlights</span><span class="val" id="v-hig">0</span></span>
+          <input type="range" id="s-hig" min="-100" max="100" step="1" value="0">
+        </label>
+        <label class="field">
+          <span class="lab"><span>Sharpen</span><span class="val" id="v-shp">0</span></span>
+          <input type="range" id="s-shp" min="0" max="100" step="1" value="0">
+        </label>
+        <div class="note">Positive shadows lifts the dark areas. Negative highlights pulls back blown-out glare — useful for laminated menus shot under a flash.</div>
+      </details>
+
+      </fieldset>
+
+      <div class="grp">
+        <div class="choices">
+          <button class="btn equal wide" id="btn-to-export">Continue to export</button>
+          <div class="exp-why">Each photo is a page on its own.</div>
+          <div class="orline">or</div>
+          <button class="btn equal wide" id="btn-to-join">Join / merge photos</button>
+          <div class="exp-why">The menu arrived in halves that need putting together into one page first.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── 3 · SLICE ─── -->
+    <section class="pane" data-pane="slice">
+      <div class="eyebrow">Crop regions</div>
+      <p class="hint">Drag on the page to draw a box around each section — <b>Appetizers</b>, <b>Drinks</b>, and so on. Each box exports as its own image.</p>
+      <div class="note" style="margin-bottom:10px">Automatic finding looks for headings set in larger type (<b>FRIED RICE</b>) and groups each one with the items under it. If it can't find that pattern it says so rather than guessing.</div>
+      <div class="stack">
+        <button class="btn crop wide" id="btn-auto-slice">Find sections automatically</button>
+        <label class="check"><input type="checkbox" id="c-two-col"> Menu has two columns</label>
+        <label class="field">
+          <span class="lab"><span>Padding around each box</span><span class="val" id="v-pad">8 px</span></span>
+          <input type="range" id="s-pad" min="0" max="60" step="1" value="8">
+        </label>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow">Regions <span style="margin-left:auto"></span></div>
+        <div class="list" id="region-list"></div>
+        <div class="hint" id="region-empty" style="margin-top:2px">No regions yet.</div>
+        <div class="row" style="margin-top:9px">
+          <button class="btn sm" id="btn-region-order">Reorder top→bottom</button>
+          <button class="btn sm danger" id="btn-region-clear">Clear all</button>
+        </div>
+        <label class="field" style="margin-top:12px">
+          <span class="lab"><span>Rename selected</span><span class="val" id="v-selname">—</span></span>
+          <input type="text" id="in-region-name" placeholder="e.g. Appetizers" autocomplete="off">
+        </label>
+        <div class="note">Drag inside a box to move it, drag a corner to resize, <kbd>Delete</kbd> removes the selected box.</div>
+      </div>
+
+      <div class="grp">
+        <button class="btn primary wide" id="btn-to-adjust">Continue to enhancement</button>
+      </div>
+    </section>
+
+    <!-- ─── 5 · EXPORT ─── -->
+    <!-- ─── PAGES ─── -->
+    <section class="pane on" data-pane="pages">
+      <div class="eyebrow">Add photos</div>
+      <div class="drop" id="drop">
+        <div class="big">Add photos</div>
+        <div class="sub">PNG · JPG · HEIC · drop or click</div>
+        <input type="file" id="file" accept="image/*" multiple hidden>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow">Put them in order</div>
+        <p class="hint">Drag the pages in the middle of the screen into the order you want them in the PDF. Everything downstream follows this order.</p>
+        <div class="row">
+          <button class="btn sm" id="btn-order-name">Sort by filename</button>
+          <button class="btn sm" id="btn-order-rev">Reverse</button>
+        </div>
+      </div>
+
+      <div class="grp">
+        <button class="btn primary wide" id="btn-to-scan">Next — straighten them</button>
+      </div>
+    </section>
+
+    <!-- ─── JOIN ─── -->
+    <section class="pane" data-pane="join">
+      <div class="eyebrow">Which two halves</div>
+      <div class="stack">
+        <label class="field" style="margin-bottom:6px">
+          <span class="lab"><span>A — stays put</span></span>
+          <select id="sel-a"></select>
+        </label>
+        <label class="field">
+          <span class="lab"><span>B — moves</span></span>
+          <select id="sel-b"></select>
+        </label>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow">Where B goes</div>
+        <div class="seg" id="seg-edge">
+          <button data-edge="right" class="on">Beside A →</button>
+          <button data-edge="bottom">Under A ↓</button>
+        </div>
+        <div class="note" style="margin-top:9px">Two portrait photos of a wide menu go <b>beside</b>. Top and bottom halves of a long menu go <b>under</b>. Both halves are re-warped from the original pixels to one matched scale, so joining costs no extra sharpness.</div>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow">Line up the seam</div>
+        <div class="stack">
+          <button class="btn primary wide" id="btn-find-seam">Find the seam automatically</button>
+          <label class="check"><input type="checkbox" id="c-diff-join"> Difference view — aligned goes black</label>
+        </div>
+        <div class="note"><b>Drag anywhere on the page</b> to slide B over A. <kbd>←↑↓→</kbd> nudges 1&nbsp;px, <kbd>Shift</kbd> 10&nbsp;px.<br><br>Tick <b>Difference view</b>, scroll to zoom into the seam, and nudge until the overlapping strip goes black. Black means the two halves match exactly.</div>
+      </div>
+
+      <details class="adv">
+        <summary>Seam details</summary>
+        <label class="field">
+          <span class="lab"><span>Seam feather</span><span class="val" id="v-jfeather">24 px</span></span>
+          <input type="range" id="s-jfeather" min="0" max="200" step="2" value="24">
+        </label>
+        <div class="readout" id="join-readout">—</div>
+      </details>
+
+      <div class="grp">
+        <button class="btn primary wide" id="btn-join">Join into one page</button>
+        <div class="note" style="margin-top:9px">The two halves are set aside, not deleted. Delete the joined page to get them back. You stay here afterwards, so you can join another pair.</div>
+        <button class="btn wide" id="btn-join-done" style="margin-top:12px">Done joining — continue to export</button>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="export">
+      <div class="eyebrow">What goes out</div>
+      <div class="list" id="export-list"></div>
+      <div class="hint" id="export-none" style="display:none;margin-top:2px">Nothing selected — tick pages in the strip below.</div>
+      <div class="row" style="margin-top:9px">
+        <button class="btn sm" id="btn-pick-all">All</button>
+        <button class="btn sm" id="btn-pick-joined">Joined only</button>
+        <button class="btn sm" id="btn-pick-none">Clear</button>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow">Export</div>
+
+        <div class="choices">
+          <button class="btn equal wide" id="btn-zip-all">Export all images (ZIP)</button>
+          <div class="exp-why" id="all-why"><b>Images only</b>, flattened / straightened / cropped and <b>joined</b>.</div>
+
+          <button class="btn equal wide" id="btn-pdf">Export PDF</button>
+          <div class="exp-why"><b>PDF</b> for upload in <b>CMA</b>.</div>
+
+          <div id="ocr-choice">
+            <button class="btn equal wide" id="btn-zip-ocr">Export OCR set (ZIP)</button>
+            <div class="exp-why">For <b>OCR</b> use, cropped and flattened but <b>not joined</b>.</div>
+          </div>
+          <div class="exp-why" id="ocr-absent" style="display:none;border-left-color:transparent;padding-left:0">Join two pages and a third button appears here for the un-joined OCR set. Until then it would be the same images as above.</div>
+        </div>
+
+        <div class="note" style="margin-top:14px">Each button downloads exactly one file, so Chrome will not block anything. The <b>OCR set</b> also carries a <b>README.txt</b> and a <b>manifest.json</b> so the parser knows what it is looking at — the other two are just the files you asked for.</div>
+        <div class="note" id="ocr-hint" style="display:none">Nothing has been joined, so the first archive already <i>is</i> the un-joined set — send that one to the parser.</div>
+      </div>
+
+      <div class="grp">
+        <div class="eyebrow">Estimated size</div>
+        <div class="readout" id="size-readout">—</div>
+      </div>
+
+      <details class="adv">
+        <summary>Quality and size</summary>
+
+        <label class="field">
+          <span class="lab"><span>Image quality</span><span class="val" id="v-q">92%</span></span>
+          <input type="range" id="s-q" min="60" max="100" step="1" value="92">
+        </label>
+        <label class="field">
+          <span class="lab"><span>Image longest edge</span><span class="val" id="v-maxdim-img">4000 px</span></span>
+          <input type="range" id="s-maxdim-img" min="1600" max="5000" step="100" value="4000">
+        </label>
+        <div class="note" style="margin-bottom:12px">Exported images. A phone photo is about 4000&nbsp;px on its long side, so the default leaves them essentially untouched — resolution is the one thing worth spending file size on for a parser.</div>
+        <label class="field">
+          <span class="lab"><span>PDF longest edge</span><span class="val" id="v-maxdim">2600 px</span></span>
+          <input type="range" id="s-maxdim" min="1200" max="4200" step="100" value="2600">
+        </label>
+        <div class="note" style="margin-bottom:12px">The PDF is for reading, so it does not need the full sensor. Lower this if the PDF is too heavy to attach.</div>
+        <div class="note">JPEG at 88% is visually identical to the original on menu text and roughly a tenth the size of PNG. Turn on lossless only if the OCR run actually needs it.</div>
+        <label class="check" style="margin-top:8px"><input type="checkbox" id="c-lossless"> Lossless PNG (much larger files)</label>
+        <label class="check"><input type="checkbox" id="c-include-full" checked> Include full pages in the OCR folder</label>
+        <label class="field" style="margin-top:8px">
+          <span class="lab"><span>PDF page format</span></span>
+          <select id="sel-pdf-fmt">
+            <option value="fit">Match each image's shape</option>
+            <option value="a4">A4 portrait</option>
+            <option value="letter">US Letter portrait</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="lab"><span>Upscale OCR crops</span><span class="val" id="v-up">1.0×</span></span>
+          <input type="range" id="s-up" min="1" max="3" step="0.25" value="1">
+        </label>
+      </details>
+
+      <div class="note warn" id="fallback-note" style="display:none;margin-top:11px">A library did not load, so export is using the built-in basic writers. The PDF will be JPEG regardless of the lossless setting.</div>
+
+      <div class="grp">
+        <div class="eyebrow">Job summary</div>
+        <div class="readout" id="summary">—</div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ══ STAGE ══ -->
+  <main id="stage">
+    <canvas id="view"></canvas>
+    <canvas id="overlay"></canvas>
+    <div class="stage-badge" id="badge" style="display:none"></div>
+    <div id="pagegrid"></div>
+    <div id="zoomhud">
+      <button id="z-out" title="Zoom out">&minus;</button>
+      <span class="pct" id="z-pct">100%</span>
+      <button id="z-in" title="Zoom in">+</button>
+      <button id="z-fit" title="Fit to window">fit</button>
+    </div>
+    <div id="stage-empty">
+      <div>
+        <div class="big">Nothing on the copy stand</div>
+        <div class="sub">Add photos in the panel on the left</div>
+      </div>
+    </div>
+    <div id="busy"><div class="scanbox"><div class="scanbar"></div><div id="busy-msg">Working</div></div></div>
+  </main>
+
+  <!-- ══ TRAY ══ -->
+  <footer id="tray">
+    <div class="tray-head">
+      <div class="eyebrow" style="min-width:70px">Pages</div>
+      <div class="readout" id="tray-meta"></div>
+    </div>
+    <div class="tray-scroll" id="tray-scroll">
+      <span class="tray-empty">No pages yet</span>
+    </div>
+  </footer>
+</div>
+
+<div id="toasts"></div>
+<script>
+/* ================================================================
+   MENU COPY STAND
+   Advanced document scanner & slicer.
+   ── 0  utilities & library loader
+   ── 1  state model
+   ── 2  stage / view transform
+   ── 3  step 1  stitching board
+   ── 4  step 2  perspective correction
+   ── 5  step 3  tone pipeline
+   ── 6  step 4  region slicing
+   ── 7  step 5  export
+   ── 8  wiring
+   ================================================================ */
+(function(){
+'use strict';
+
+/* Change the name here and it follows through the title bar, the toasts and
+   every exported filename. */
+const APP={
+  name:'Menu Scan',
+  version:'1.0',
+  tagline:'photos to PDF & OCR'
+};
+
+/* ════════════════════════════════════════════════════════════════
+   0 · UTILITIES
+   ════════════════════════════════════════════════════════════════ */
+const ACCENT='#0f766e', CROPC='#a3512a', INK='#22211f';
+const $  = (s,r)=> (r||document).querySelector(s);
+const $$ = (s,r)=> Array.from((r||document).querySelectorAll(s));
+const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+const uid = (()=>{let n=0;return p=>`${p}${++n}`;})();
+const raf = ()=> new Promise(r=>requestAnimationFrame(()=>r()));
+const sleep = ms=> new Promise(r=>setTimeout(r,ms));
+
+function toast(msg,kind){
+  const el=document.createElement('div');
+  el.className='toast'+(kind?' '+kind:'');
+  el.textContent=msg;
+  $('#toasts').appendChild(el);
+  setTimeout(()=>{el.style.transition='opacity .25s';el.style.opacity='0';setTimeout(()=>el.remove(),260);},kind==='err'?5200:3000);
+}
+
+let busyDepth=0;
+async function busy(msg,fn){
+  if(busyDepth>0){ toast('Still working — one job at a time.','warn'); return; }
+  busyDepth++;
+  document.body.classList.add('is-busy');
+  $('#busy-msg').textContent=msg;
+  $('#busy').classList.add('on');
+  await raf(); await raf();               // let the paint land before we block
+  try{ return await fn(); }
+  finally{
+    if(--busyDepth<=0){
+      busyDepth=0;
+      $('#busy').classList.remove('on');
+      document.body.classList.remove('is-busy');
+    }
+  }
+}
+
+function mkCanvas(w,h){
+  const c=document.createElement('canvas');
+  c.width=Math.max(1,Math.round(w)); c.height=Math.max(1,Math.round(h));
+  return c;
+}
+function ctx2d(c,opts){ return c.getContext('2d',opts||{willReadFrequently:true}); }
+
+function copyCanvas(src){
+  const c=mkCanvas(src.width,src.height);
+  ctx2d(c).drawImage(src,0,0);
+  return c;
+}
+function scaleCanvas(src,maxDim){
+  const m=Math.max(src.width,src.height);
+  if(m<=maxDim) return copyCanvas(src);
+  const k=maxDim/m;
+  const c=mkCanvas(src.width*k,src.height*k);
+  const g=ctx2d(c); g.imageSmoothingQuality='high';
+  g.drawImage(src,0,0,c.width,c.height);
+  return c;
+}
+function thumbURL(src,size){
+  size=size||124;
+  const k=Math.min(size/src.width,size/src.height);
+  const c=mkCanvas(src.width*k,src.height*k);
+  const g=ctx2d(c,{}); g.imageSmoothingQuality='high';
+  g.drawImage(src,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',0.72);
+}
+function canvasBlob(c,type,q){
+  return new Promise(res=>{
+    if(c.toBlob) c.toBlob(b=>res(b),type,q);
+    else { const d=c.toDataURL(type,q), bin=atob(d.split(',')[1]), u=new Uint8Array(bin.length);
+           for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); res(new Blob([u],{type})); }
+  });
+}
+function download(blob,name){
+  const u=URL.createObjectURL(blob), a=document.createElement('a');
+  a.href=u; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),4000);
+}
+function pad(n,w){ return String(n).padStart(w||2,'0'); }
+function safeName(s){ return (s||'').replace(/[^\w\-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||'region'; }
+
+const IMG_EXT=/\.(png|jpe?g|webp|bmp|gif|avif|heic|heif|tiff?)$/i;
+
+/* ── EXIF-aware decode ─────────────────────────────────────────
+   Phone photos carry an orientation flag. createImageBitmap with
+   imageOrientation:'from-image' honours it; the <img> fallback does
+   too in current browsers. Skipping this gives sideways menus.      */
+async function decodeImage(file){
+  if(window.createImageBitmap){
+    try{
+      const bm=await createImageBitmap(file,{imageOrientation:'from-image'});
+      const c=mkCanvas(bm.width,bm.height);
+      ctx2d(c,{}).drawImage(bm,0,0);
+      if(bm.close) bm.close();
+      return c;
+    }catch(e){ /* fall through */ }
+  }
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((res,rej)=>{
+      const im=new Image();
+      im.onload=()=>res(im);
+      im.onerror=()=>rej(new Error('Could not decode '+file.name));
+      im.src=url;
+    });
+    const c=mkCanvas(img.naturalWidth,img.naturalHeight);
+    ctx2d(c,{}).drawImage(img,0,0);
+    return c;
+  } finally{ URL.revokeObjectURL(url); }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   0b · LIBRARY LOADER
+   Each library is optional-with-consequences. The rail shows real
+   status, and every feature that needs one checks before running.
+   ════════════════════════════════════════════════════════════════ */
+const LIB={cv:false,jspdf:false,jszip:false};
+
+function setLib(name,state){
+  LIB[name]=(state==='ok');
+  const el=$(`.lib[data-lib="${name}"]`);
+  if(el){ el.classList.remove('load','ok','fail'); el.classList.add(state); }
+}
+function injectScript(src){
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=src; s.async=true;
+    s.onload=()=>res(src);
+    s.onerror=()=>rej(new Error('blocked: '+src));
+    document.head.appendChild(s);
+  });
+}
+async function loadFirst(urls,ready,timeout){
+  for(const u of urls){
+    try{
+      await injectScript(u);
+      await waitFor(ready,timeout||20000);
+      return u;
+    }catch(e){ /* next mirror */ }
+  }
+  throw new Error('all sources failed');
+}
+function waitFor(test,timeout){
+  return new Promise((res,rej)=>{
+    const t0=Date.now();
+    (function tick(){
+      let ok=false; try{ ok=test(); }catch(e){}
+      if(ok) return res();
+      if(Date.now()-t0>timeout) return rej(new Error('timed out'));
+      setTimeout(tick,90);
+    })();
+  });
+}
+
+async function loadLibraries(){
+  /* OpenCV — biggest payload, so kick it off first and don't await it
+     alongside the small ones. Builds differ in how they signal ready
+     (Module.onRuntimeInitialized vs a Promise vs immediate), so poll
+     for cv.Mat, which is true in all of them. */
+  const cvJob=(async()=>{
+    try{
+      await loadFirst([
+        'https://docs.opencv.org/4.10.0/opencv.js',
+        'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js',
+        'https://docs.opencv.org/4.8.0/opencv.js'
+      ], ()=>{
+        if(window.cv && typeof window.cv.then==='function') return false;
+        return !!(window.cv && typeof window.cv.Mat==='function');
+      }, 60000);
+      setLib('cv','ok');
+    }catch(e){
+      setLib('cv','fail');
+      toast('OpenCV.js did not load. Automatic edge detection and Magic enhance are off; manual corners still work (JS fallback warp).','warn');
+    }
+  })();
+
+  const jobs=[
+    loadFirst(['https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+               'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'],
+              ()=>!!(window.jspdf&&window.jspdf.jsPDF),8000)
+      .then(()=>setLib('jspdf','ok'))
+      .catch(()=>{setLib('jspdf','fail');}),
+
+    loadFirst(['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+               'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'],
+              ()=>!!window.JSZip,8000)
+      .then(()=>setLib('jszip','ok'))
+      .catch(()=>{setLib('jszip','fail');})
+  ];
+
+  await Promise.all(jobs);
+  cvJob.then(()=>{ if(S.step===STEP.SCAN) Crop.refreshButtons(); });
+}
+
+/* ── OpenCV Mat bookkeeping ───────────────────────────────────────
+   Every Mat is registered and deleted in a finally block. WASM heap
+   leaks here are the classic way an OpenCV.js tool dies after 20 runs. */
+function withMats(fn){
+  const bag=[];
+  const t=m=>{bag.push(m);return m;};
+  try{ return fn(t); }
+  finally{ for(const m of bag){ try{ if(m && !m.isDeleted?.()) m.delete(); }catch(e){} } }
+}
+const cvReady = ()=> LIB.cv && window.cv && typeof cv.Mat==='function';
+
+/* ════════════════════════════════════════════════════════════════
+   1 · STATE
+   ════════════════════════════════════════════════════════════════ */
+/* ── Workflow policy ─────────────────────────────────────────────
+   Slicing runs before enhancement, and the rail is numbered to match.
+   Flip requireSliceBeforeEnhance to false to drop the gate entirely —
+   nothing else in the pipeline depends on it.                        */
+/* ── Flow ─────────────────────────────────────────────────────────
+   Correct each photo's geometry FIRST, then join. A single 4-point warp
+   cannot rectify two photos taken from two camera poses, so stitching
+   before perspective correction is geometrically unsound — which is what
+   the old order did.
+
+   Steps are named, and FLOW is the running order. Re-enabling slicing is
+   one flag: the editor, the section finder and the crop-export path are
+   all still here and still tested. */
+const CONFIG={
+  enableSlicing:false,
+  requireSliceBeforeEnhance:false,
+  /* Automatic edge detection is off — it rarely found the right quad on
+     these photos and a wrong quad is worse than no quad. detectQuad and
+     detectQuadJS are untouched; flip this to bring the button back. */
+  autoDetect:false,
+  /* Automatic seam search is off. Join.findOverlap and its tests are still
+     here untouched — flip this to true to bring the button back. */
+  autoSeam:false
+};
+const STEP={PAGES:'pages',SCAN:'scan',ADJUST:'adjust',SLICE:'slice',JOIN:'join',EXPORT:'export'};
+const STEP_META={
+  pages :{title:'Reorder', need:()=>true},
+  scan  :{title:'Straighten', need:()=>S.pages.length>0},
+  adjust:{title:'Adjust', need:p=>!!(p&&p.flat)},
+  slice :{title:'Slice',  need:p=>!!(p&&p.flat)},
+  join  :{title:'Join',   need:()=>S.pages.filter(x=>x.flat&&!x.consumed).length>=2},
+  export:{title:'Export', need:()=>S.pages.some(x=>x.flat&&x.include)}
+};
+const FLOW=CONFIG.enableSlicing
+  ? [STEP.PAGES,STEP.SCAN,STEP.ADJUST,STEP.SLICE,STEP.JOIN,STEP.EXPORT]
+  : [STEP.PAGES,STEP.SCAN,STEP.ADJUST,STEP.JOIN,STEP.EXPORT];
+
+const DEFAULT_ADJ={
+  mode:'color', flat:0, bri:0, con:0, sha:0, hig:0, shp:0,
+  thresh:160, block:31, cconst:9, despeckle:true
+};
+
+const S={
+  step:STEP.PAGES,
+  inbox:[],            // {id,name,canvas,thumb}
+  pages:[],            // Page
+  activeId:null,
+  selCorner:-1,
+  selRegion:-1,
+  spaceDown:false,
+  dragPid:null
+};
+
+function newPage(canvas,name){
+  return {
+    id:uid('pg'),
+    name:name||'page',
+    raw:canvas,                  // source pixels (post-stitch)
+    enhanceUnlocked:false,       // set once this page has been sliced
+    turns:0,                     // quarter turns, applied at flatten
+    geom:null,                   // resolved warp geometry, so Join can re-run it
+    consumed:false,              // folded into a joined page
+    include:true,                // does this page go into the export?
+    flattenedAt:0,               // timestamp, drives the tick in the strip
+    joinedFrom:null,             // [idA,idB] when this page is a join result
+    tuned:false,                 // has anyone actually touched the tone controls?
+    cornersVerified:false,       // did a human actually check the corners?
+    corners:null,                // 4 pts in raw-image space, TL TR BR BL
+    rotate:0,
+    flat:null,                   // warped, full resolution
+    /* One tone profile. There used to be a second, greyed and sharpened,
+       for OCR — testing showed it did not help, so the same colour page now
+       feeds every output. What DID help was keeping the OCR set unjoined,
+       and that is a matter of which files ship, not how they are processed. */
+    adj:Object.assign({},DEFAULT_ADJ,PRESETS.scan),
+    regions:[],                  // {id,label,x,y,w,h} in flat space
+    _proxy:null,                 // downscaled flat, for interactive preview
+    _preview:null,
+    _previewKey:'',
+    thumb:null
+  };
+}
+const activePage = ()=> S.pages.find(p=>p.id===S.activeId)||null;
+
+function invalidate(p){ p._preview=null; p._previewKey=''; }
+/* Which profile the sliders are editing. Global, not per page — you are
+   tuning "the OCR look" across the whole job. */
+/* Kept as a one-liner so every call site reads the same whether or not
+   there is ever more than one profile again. */
+const curAdj=p=>p.adj;
+function setFlat(p,canvas){
+  p.flat=canvas;
+  // a re-flatten (turn, deskew, re-crop) makes any prepared join stale
+  if(Join.aId===p.id||Join.bId===p.id) Join.A=Join.B=null;
+  p._proxy=scaleCanvas(canvas,1400);
+  invalidate(p);
+  p.regions=p.regions.filter(r=>r.x<canvas.width&&r.y<canvas.height);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   2 · STAGE — one transform, image space is the source of truth
+   ════════════════════════════════════════════════════════════════ */
+const View={
+  src:null, dpr:1, scale:1, ox:0, oy:0, cw:0, ch:0,
+  zoom:1, panX:0, panY:0, fitScale:1,
+
+  sync(){
+    const st=$('#stage'), dpr=Math.min(2,window.devicePixelRatio||1);
+    const w=st.clientWidth, h=st.clientHeight;
+    for(const c of [$('#view'),$('#overlay')]){
+      if(c.width!==Math.round(w*dpr)||c.height!==Math.round(h*dpr)){
+        c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+      }
+    }
+    this.dpr=dpr; this.cw=Math.round(w*dpr); this.ch=Math.round(h*dpr);
+  },
+
+  show(src,padCss){
+    this.sync();
+    this.src=src;
+    const g=ctx2d($('#view'),{});
+    g.setTransform(1,0,0,1,0,0);
+    g.clearRect(0,0,this.cw,this.ch);
+    if(!src){ this.clearOverlay(); return; }
+    const padPx=(padCss==null?44:padCss)*this.dpr;
+    const k=Math.min((this.cw-padPx*2)/src.width,(this.ch-padPx*2)/src.height);
+    this.fitScale=k>0?k:0.01;
+    this.scale=this.fitScale*this.zoom;
+    this.clampPan();
+    this.ox=Math.round((this.cw-src.width*this.scale)/2+this.panX);
+    this.oy=Math.round((this.ch-src.height*this.scale)/2+this.panY);
+    g.imageSmoothingQuality='high';
+    // past roughly 1:1 show the real pixels — a blurry upscale hides the
+    // paper edge, which is exactly what you zoom in to find
+    g.imageSmoothingEnabled=this.scale<1.05;
+    g.drawImage(src,this.ox,this.oy,src.width*this.scale,src.height*this.scale);
+    // plate shadow + hairline, so the page reads as a physical sheet
+    g.save();
+    g.strokeStyle='rgba(0,0,0,.16)'; g.lineWidth=1;
+    g.strokeRect(this.ox+.5,this.oy+.5,src.width*this.scale-1,src.height*this.scale-1);
+    g.restore();
+  },
+
+  clampPan(){
+    if(!this.src) return;
+    const w=this.src.width*this.scale, h=this.src.height*this.scale;
+    const mx=Math.max(0,(w-this.cw)/2+90*this.dpr);
+    const my=Math.max(0,(h-this.ch)/2+90*this.dpr);
+    this.panX=clamp(this.panX,-mx,mx);
+    this.panY=clamp(this.panY,-my,my);
+  },
+  resetView(){ this.zoom=1; this.panX=0; this.panY=0; },
+  zoomAt(cx,cy,factor){
+    if(!this.src) return;
+    const before=this.toImage(cx,cy);          // image point under the cursor
+    this.zoom=clamp(this.zoom*factor,1,16);
+    this.scale=this.fitScale*this.zoom;
+    const ox=(this.cw-this.src.width*this.scale)/2+this.panX;
+    const oy=(this.ch-this.src.height*this.scale)/2+this.panY;
+    this.panX+=cx-(ox+before.x*this.scale);    // pin it back under the cursor
+    this.panY+=cy-(oy+before.y*this.scale);
+    this.clampPan();
+  },
+  toView(x,y){ return {x:this.ox+x*this.scale, y:this.oy+y*this.scale}; },
+  toImage(x,y){ return {x:(x-this.ox)/this.scale, y:(y-this.oy)/this.scale}; },
+  ptFromEvent(ev){
+    const r=$('#overlay').getBoundingClientRect();
+    const cx=(ev.clientX-r.left)*this.dpr, cy=(ev.clientY-r.top)*this.dpr;
+    return {cx,cy, ...this.toImage(cx,cy)};
+  },
+  overlayCtx(){ const g=ctx2d($('#overlay'),{}); g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,this.cw,this.ch); return g; },
+  clearOverlay(){ this.overlayCtx(); }
+};
+
+/* ── Pixel rulers along the top and left of the sheet.
+   Instrument furniture, but it earns its place: slice boxes are
+   specified in pixels and this is where you read them off. ── */
+function drawRulers(g){
+  const s=View.src; if(!s) return;
+  const d=View.dpr, step=niceStep(60*d/View.scale);
+  g.save();
+  g.font=`${9*d}px "IBM Plex Mono",monospace`;
+  g.fillStyle='rgba(107,104,98,.8)';
+  g.strokeStyle='rgba(107,104,98,.32)';
+  g.lineWidth=1;
+  g.beginPath();
+  for(let x=0;x<=s.width+1;x+=step){
+    const v=View.toView(Math.min(x,s.width),0);
+    g.moveTo(Math.round(v.x)+.5,View.oy-4*d); g.lineTo(Math.round(v.x)+.5,View.oy-11*d);
+    g.fillText(String(Math.round(x)),Math.round(v.x)+3*d,View.oy-14*d);
+  }
+  for(let y=0;y<=s.height+1;y+=step){
+    const v=View.toView(0,Math.min(y,s.height));
+    g.moveTo(View.ox-4*d,Math.round(v.y)+.5); g.lineTo(View.ox-11*d,Math.round(v.y)+.5);
+    g.save(); g.translate(View.ox-14*d,Math.round(v.y)-3*d); g.rotate(-Math.PI/2);
+    g.fillText(String(Math.round(y)),0,0); g.restore();
+  }
+  g.stroke(); g.restore();
+}
+function niceStep(raw){
+  const p=Math.pow(10,Math.floor(Math.log10(Math.max(1,raw))));
+  for(const m of [1,2,5,10]) if(raw<=p*m) return p*m;
+  return p*10;
+}
+
+/* ── Registration mark: the signature handle. A press crosshair,
+   not a generic dot — and it tells you which corner it is. ── */
+function drawRegMark(g,x,y,label,active,color){
+  const d=View.dpr, R=11*d;
+  g.save();
+  g.translate(x,y);
+  g.lineWidth=(active?2:1.4)*d;
+  g.strokeStyle=color;
+  g.beginPath(); g.arc(0,0,R,0,Math.PI*2); g.stroke();
+  g.beginPath();
+  g.moveTo(-R-6*d,0); g.lineTo(-3*d,0); g.moveTo(3*d,0); g.lineTo(R+6*d,0);
+  g.moveTo(0,-R-6*d); g.lineTo(0,-3*d); g.moveTo(0,3*d); g.lineTo(0,R+6*d);
+  g.stroke();
+  if(active){
+    g.fillStyle=color; g.beginPath(); g.arc(0,0,3*d,0,Math.PI*2); g.fill();
+    g.globalAlpha=.16; g.beginPath(); g.arc(0,0,R,0,Math.PI*2); g.fill(); g.globalAlpha=1;
+  }
+  g.font=`600 ${9.5*d}px "IBM Plex Mono",monospace`;
+  g.fillStyle=color;
+  g.fillText(label,R+9*d,-R-3*d);
+  g.restore();
+}
+
+/* ── Loupe: a 3.2× magnifier that follows the corner being dragged.
+   Placing a corner on a folded, glare-lit menu is a sub-pixel job. ── */
+function drawLoupe(g,ix,iy,touch){
+  const src=View.src; if(!src) return;
+  const d=View.dpr, R=62*d;
+  // Keep the loupe's effective magnification roughly constant as the stage
+  // zooms, so it stays useful instead of turning into a wall of fat pixels.
+  const Z=clamp(3.2/View.zoom,1.3,3.2);
+  const v=View.toView(ix,iy);
+  // On touch the hand covers a desktop-sized offset, so push it further out.
+  const off=(touch?86:34)*d;
+  let cx=v.x+R+off, cy=v.y-R-off;
+  if(cx+R>View.cw-8*d) cx=v.x-R-off;
+  if(cy-R<8*d) cy=v.y+R+off;
+  const half=R/(View.scale*Z);
+  g.save();
+  g.beginPath(); g.arc(cx,cy,R,0,Math.PI*2); g.clip();
+  g.fillStyle='#ffffff'; g.fillRect(cx-R,cy-R,R*2,R*2);
+  g.imageSmoothingEnabled=false;
+  g.drawImage(src, ix-half, iy-half, half*2, half*2, cx-R, cy-R, R*2, R*2);
+  g.restore();
+  g.save();
+  g.strokeStyle=ACCENT; g.lineWidth=1.6*d;
+  g.beginPath(); g.arc(cx,cy,R,0,Math.PI*2); g.stroke();
+  g.globalAlpha=.85; g.lineWidth=1*d;
+  g.beginPath(); g.moveTo(cx-14*d,cy); g.lineTo(cx-3*d,cy); g.moveTo(cx+3*d,cy); g.lineTo(cx+14*d,cy);
+  g.moveTo(cx,cy-14*d); g.lineTo(cx,cy-3*d); g.moveTo(cx,cy+3*d); g.lineTo(cx,cy+14*d);
+  g.stroke();
+  g.globalAlpha=1;
+  g.font=`${9.5*d}px "IBM Plex Mono",monospace`;
+  const t=`${Math.round(ix)}, ${Math.round(iy)}`;
+  const w=g.measureText(t).width;
+  g.fillStyle='#ffffffee'; g.fillRect(cx-w/2-5*d,cy+R+5*d,w+10*d,15*d);
+  g.fillStyle=INK; g.fillText(t,cx-w/2,cy+R+16*d);
+  g.restore();
+}
+
+function badge(html){
+  const b=$('#badge');
+  if(!html){ b.style.display='none'; return; }
+  b.style.display='flex'; b.innerHTML=html;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   3 · STEP 1 — THE STITCHING BOARD
+   ════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════
+   3 · IMPORT + JOIN
+
+   Why there is no free-form board any more.
+
+   Once each photo has been perspective-corrected it IS an axis-aligned
+   rectangle. The only degree of freedom that still matters is a 2-D
+   translation: rotation is already gone (the warp mapped the quad to a
+   rectangle) and scale is forced (both halves must share a scale or the
+   text height steps at the seam).
+
+   A board with free rotate/scale handles therefore adds nothing but two
+   liabilities — an extra arbitrary resample, and manual error. Offset-only
+   is both simpler and strictly higher quality, and it drops one CDN
+   dependency with it.
+
+   Resample budget, which was the actual question:
+     old order  stitch then warp  = 2 resamples, and geometrically wrong
+     naive new  warp then rescale = 2 resamples
+     this       re-warp from the ORIGINAL pixels at a matched scale,
+                then composite by pure translation = 1 resample per photo
+   Because p.raw and p.geom are kept, the warp can be re-run at any output
+   size, so matching the two halves costs nothing extra. The composite is a
+   1:1 drawImage — no interpolation at all.
+   ════════════════════════════════════════════════════════════════ */
+const Inbox={
+  sel:new Set(),
+
+  async addFiles(files){
+    /* Attempt-then-report beats filter-then-reject. Some Android shares and
+       file managers hand over an empty MIME type, and browsers gain format
+       support over time. */
+    const imgs=Array.from(files).filter(f=>/^image\//i.test(f.type)||IMG_EXT.test(f.name));
+    if(!imgs.length){ toast('No image files in that drop.','err'); return; }
+    const skipped=[], added=[];
+    await busy('Decoding '+imgs.length+' image'+(imgs.length>1?'s':''),async()=>{
+      for(const f of imgs){
+        try{
+          const c=await decodeImage(f);
+          const pg=newPage(c,f.name.replace(/\.[^.]+$/,''));
+          pg.corners=insetCorners(c,0.06);
+          pg.thumb=thumbURL(c);
+          S.pages.push(pg); added.push(pg);
+        }catch(e){ skipped.push(f.name); }
+        await raf();
+      }
+    });
+    if(skipped.length){
+      const conv=skipped.some(nm=>/\.(hei[cf]|tiff?)$/i.test(nm));
+      toast(`Could not decode ${skipped.length} file(s), e.g. ${skipped[0]}`
+        +(conv?' — HEIC/TIFF need converting to JPG first. On iPhone: Settings › Camera › Formats › Most Compatible.':''),'err');
+    }
+    if(added.length){
+      S.activeId=added[0].id; S.selCorner=-1;
+      Join.userPicked=false; Join.A=Join.B=null;
+      renderTray(); goStep(STEP.PAGES); Pages.draw();
+      toast(`${added.length} photo${added.length>1?'s':''} added. Drag them into order, then straighten.`);
+    }
+  }
+};
+
+/* Re-run a page's warp at an arbitrary scale, straight from the original
+   pixels. One resample from source to final geometry. */
+function renderFlatAt(p,k){
+  if(!p.geom||!p.raw) return k===1?p.flat:scaleCanvas(p.flat,Math.round(Math.max(p.flat.width,p.flat.height)*k));
+  const g=p.geom;
+  const W=Math.max(8,Math.round(g.W*k)), H=Math.max(8,Math.round(g.H*k));
+  let out=cvReady()?warpCV(p.raw,g.corners,W,H):warpJS(p.raw,g.corners,W,H);
+  if(Math.abs(g.rot)>0.01) out=rotateCrop(out,g.rot);
+  if(g.turns) out=rotate90(out,g.turns);
+  return out;
+}
+
+const Pages={
+  draw(){
+    const host=$('#pagegrid'); host.innerHTML='';
+    if(!S.pages.length){
+      host.innerHTML='<div class="pgrid-empty">No photos yet — use <b>Add photos</b> on the left, '
+        +'or drop them anywhere on this window.</div>';
+      return;
+    }
+    const n=S.pages.length;
+    /* Most jobs are four photos or fewer, so size the cards to fill the space
+       rather than to a fixed thumbnail. At four you can actually read the
+       menu; at a fixed 156px you could not. */
+    const cardW = n<=2 ? 400 : n<=4 ? 300 : n<=6 ? 226 : n<=9 ? 178 : 148;
+    const thumbH = Math.round(cardW*1.18);
+
+    const head=document.createElement('div'); head.className='pgrid-head';
+    head.innerHTML=`<h2>Put them in order</h2>`
+      +`<p>Drag a card, or use the <b>◀ ▶</b> buttons. Number <b>1</b> becomes the first page of the PDF.</p>`;
+    host.appendChild(head);
+
+    const grid=document.createElement('div'); grid.className='pgrid';
+    let seq=0;
+    S.pages.forEach((p,i)=>{
+      if(p.include) seq++;
+      const el=document.createElement('div');
+      el.className='pcard'+(p.id===S.activeId?' on':'')+(p.include?'':' out');
+      el.draggable=true; el.dataset.pid=p.id;
+      el.style.width=cardW+'px';
+      el.innerHTML=`<span class="seq">${p.include?seq:'–'}</span>
+        <span class="grip">⠿ drag</span>
+        <canvas class="th" data-th="${p.id}" style="height:${thumbH}px"></canvas>
+        <div class="nm" title="${p.name}">${p.name}</div>
+        <div class="st"><span class="${p.flat?'yes':'no'}">${p.flat?'✓ straightened':'• to do'}</span>`
+        +`<span>${p.joinedFrom?'joined':(p.consumed?'set aside':'')}</span></div>
+        <div class="mv">
+          <button data-mv="-1" title="Move earlier"${i===0?' disabled':''}>◀</button>
+          <button data-mv="1" title="Move later"${i===n-1?' disabled':''}>▶</button>
+        </div>
+        <button class="x" title="Remove">×</button>`;
+      el.addEventListener('click',ev=>{
+        if(ev.target.classList.contains('x')){
+          ev.stopPropagation(); removePage(p); return;
+        }
+        const mv=ev.target.dataset&&ev.target.dataset.mv;
+        if(mv){
+          ev.stopPropagation();
+          const j=i+ +mv;
+          if(j<0||j>=S.pages.length) return;
+          const moved=S.pages.splice(i,1)[0];
+          S.pages.splice(j,0,moved);
+          Join.userPicked=false; Join.A=Join.B=null;
+          renderTray(); this.draw();
+          return;
+        }
+        S.activeId=p.id; renderTray(); this.draw();
+      });
+      el.addEventListener('dblclick',()=>{ S.activeId=p.id; Crop.mode=p.flat?'result':'edit'; renderTray(); goStep(STEP.SCAN); });
+      el.addEventListener('dragstart',ev=>{
+        S.dragPid=p.id; el.classList.add('dragging');
+        ev.dataTransfer.effectAllowed='move';
+        try{ ev.dataTransfer.setData('text/plain',p.id); }catch(e){}
+      });
+      el.addEventListener('dragend',()=>{ S.dragPid=null; this.draw(); });
+      el.addEventListener('dragover',ev=>{
+        if(!S.dragPid||S.dragPid===p.id) return;
+        ev.preventDefault();
+        const r=el.getBoundingClientRect();
+        el.classList.toggle('drop-before',ev.clientX<r.left+r.width/2);
+        el.classList.toggle('drop-after', ev.clientX>=r.left+r.width/2);
+      });
+      el.addEventListener('dragleave',()=>el.classList.remove('drop-before','drop-after'));
+      el.addEventListener('drop',ev=>{
+        ev.preventDefault(); el.classList.remove('drop-before','drop-after');
+        movePage(S.dragPid,p.id,ev.clientX>=el.getBoundingClientRect().left+el.getBoundingClientRect().width/2);
+        S.dragPid=null; this.draw(); renderTray();
+      });
+      grid.appendChild(el);
+    });
+    host.appendChild(grid);
+
+    /* Draw the previews from the page's own canvas rather than the 124px
+       JPEG used by the bottom strip. At a 300px card that JPEG was being
+       upscaled two and a half times, which is where the blur came from.
+       One drawImage per card costs nothing and is sharp at any pixel ratio. */
+    const dpr=Math.min(2,window.devicePixelRatio||1);
+    S.pages.forEach(p=>{
+      const cv=host.querySelector(`canvas[data-th="${p.id}"]`);
+      if(!cv) return;
+      const src=p.flat||p.raw;
+      if(!src) return;
+      cv.width=Math.round(cardW*dpr); cv.height=Math.round(thumbH*dpr);
+      const g=ctx2d(cv,{});
+      g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+      const k=Math.min(cv.width/src.width,cv.height/src.height);
+      const w=src.width*k, h=src.height*k;
+      g.imageSmoothingQuality='high';
+      g.drawImage(src,(cv.width-w)/2,(cv.height-h)/2,w,h);
+    });
+  }
+};
+
+/* Reorder and removal, shared by the grid and the bottom strip so the two
+   views can never disagree about the order. */
+function movePage(fromId,ontoId,after){
+  if(!fromId||fromId===ontoId) return;
+  const from=S.pages.findIndex(x=>x.id===fromId);
+  if(from<0) return;
+  const moved=S.pages.splice(from,1)[0];
+  let to=S.pages.findIndex(x=>x.id===ontoId);
+  if(to<0) to=S.pages.length-1;
+  if(after) to++;
+  S.pages.splice(to,0,moved);
+  Join.userPicked=false;          // order changed, so re-derive the join defaults
+  Join.A=Join.B=null;
+}
+function removePage(p){
+  const i=S.pages.indexOf(p); if(i<0) return;
+  if(p.joinedFrom) p.joinedFrom.forEach(id=>{
+    const src=S.pages.find(x=>x.id===id);
+    if(src){ src.consumed=false; src.include=true; }
+  });
+  S.pages.splice(i,1);
+  if(S.activeId===p.id) S.activeId=S.pages.length?S.pages[Math.max(0,i-1)].id:null;
+  if(Join.aId===p.id||Join.bId===p.id){ Join.A=Join.B=null; }
+  renderTray(); Pages.draw(); drawStep();
+}
+
+const Join={
+  aId:null, bId:null, userPicked:false,
+  edge:'right',          // 'right' = B beside A, 'bottom' = B under A
+  ox:0, oy:0,            // B's offset from A's origin, in full-res pixels
+  A:null, B:null,        // halves re-warped to a matched scale
+  pA:null, pB:null, pk:1,// proxies for interactive preview
+  diff:false, feather:24,
+  drag:null,
+
+  pool(){ return S.pages.filter(p=>p.flat&&!p.consumed); },
+
+  async enter(){
+    const pool=this.pool();
+    if(pool.length<2){ this.A=this.B=null; this.syncPickers(); this.draw(); return; }
+    /* Default to the first two in PAGE ORDER, which is what the grid and the
+       strip show. Reordering clears userPicked so the defaults follow the new
+       order rather than clinging to whatever was selected first. */
+    if(!this.userPicked||!pool.some(p=>p.id===this.aId)) this.aId=pool[0].id;
+    if(!this.userPicked||!pool.some(p=>p.id===this.bId)||this.bId===this.aId)
+      this.bId=(pool.find(p=>p.id!==this.aId)||pool[0]).id;
+    if(await this.prepare()) this.draw();
+  },
+
+  syncPickers(){
+    const pool=this.pool();
+    for(const [sel,key] of [['#sel-a','aId'],['#sel-b','bId']]){
+      const el=$(sel); const keep=this[key];
+      el.innerHTML=pool.map((p,i)=>`<option value="${p.id}">${pad(i+1)} · ${p.name}</option>`).join('');
+      if(pool.some(p=>p.id===keep)) el.value=keep;
+      else if(pool.length) { this[key]=pool[key==='aId'?0:Math.min(1,pool.length-1)].id; el.value=this[key]; }
+      else this[key]=null;
+    }
+    if(this.aId&&this.aId===this.bId&&pool.length>1){
+      this.bId=pool.find(p=>p.id!==this.aId).id; $('#sel-b').value=this.bId;
+    }
+    const ready=pool.length>=2&&this.aId&&this.bId&&this.aId!==this.bId;
+    ['#btn-find-seam','#btn-join'].forEach(id=>{ const b=$(id); if(b) b.disabled=!ready; });
+    return ready;
+  },
+
+  /* Re-warp both halves so they share a scale. Target is the LARGER of the
+     two shared edges, so neither half is ever downsampled. */
+  async prepare(){
+    if(!this.syncPickers()){ this.A=this.B=null; return false; }
+    const a=S.pages.find(p=>p.id===this.aId), b=S.pages.find(p=>p.id===this.bId);
+    const horiz=this.edge==='right';
+    const shA=horiz?a.flat.height:a.flat.width;
+    const shB=horiz?b.flat.height:b.flat.width;
+    const target=Math.max(shA,shB);
+    await busy('Matching both halves to one scale',async()=>{
+      await raf();
+      this.A=Math.abs(shA-target)<1?a.flat:renderFlatAt(a,target/shA);
+      await raf();
+      this.B=Math.abs(shB-target)<1?b.flat:renderFlatAt(b,target/shB);
+      const span=Math.max(this.A.width+this.B.width,this.A.height+this.B.height);
+      this.pk=Math.min(1,1500/span);
+      this.pA=this.pk<1?scaleCanvas(this.A,Math.max(this.A.width,this.A.height)*this.pk):this.A;
+      this.pB=this.pk<1?scaleCanvas(this.B,Math.max(this.B.width,this.B.height)*this.pk):this.B;
+      if(horiz){ this.ox=this.A.width; this.oy=0; }
+      else     { this.ox=0; this.oy=this.A.height; }
+    });
+    return !!(this.A&&this.B);
+  },
+
+  /* Composite at a given scale. feather!==false applies the seam ramp.
+     At s===1 this is a pure 1:1 blit — no interpolation on either half. */
+  composite(s,useDiff){
+    const A=s===1?this.A:this.pA, B=s===1?this.B:this.pB;
+    const ox=Math.round(this.ox*s), oy=Math.round(this.oy*s);
+    const x0=Math.min(0,ox), y0=Math.min(0,oy);
+    const W=Math.max(A.width,ox+B.width)-x0, H=Math.max(A.height,oy+B.height)-y0;
+    const c=mkCanvas(W,H), g=ctx2d(c,{});
+    g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
+    g.drawImage(A,-x0,-y0);
+    let src=B;
+    if(!useDiff&&this.feather>0){
+      const fx=Math.max(1,this.feather*s);
+      const horiz=this.edge==='right';
+      const overlap=horiz?(A.width-ox):(A.height-oy);
+      if(overlap>fx) src=featherEdge(B,fx,horiz?'left':'top');
+    }
+    if(useDiff) g.globalCompositeOperation='difference';
+    g.drawImage(src,ox-x0,oy-y0);
+    return c;
+  },
+
+  draw(){
+    if(!this.A||!this.B){
+      View.show(null); $('#stage-empty').style.display='grid';
+      $('#stage-empty').innerHTML='<div><div class="big">Two corrected photos needed</div>'
+        +'<div class="sub">Scan and flatten at least two, then come back</div></div>';
+      badge(''); return;
+    }
+    $('#stage-empty').style.display='none';
+    View.show(this.composite(this.pk,this.diff),52);
+    const g=View.overlayCtx(), d=View.dpr;
+    drawRulers(g);
+    // mark B's footprint and the seam so the offset is legible
+    const x0=Math.min(0,this.ox), y0=Math.min(0,this.oy);
+    const bx=(this.ox-x0)*this.pk, by=(this.oy-y0)*this.pk;
+    const tl=View.toView(bx,by), br=View.toView(bx+this.pB.width,by+this.pB.height);
+    g.save();
+    g.strokeStyle=CROPC; g.lineWidth=1.4*d; g.setLineDash([6*d,4*d]);
+    g.strokeRect(tl.x+.5,tl.y+.5,br.x-tl.x,br.y-tl.y);
+    g.setLineDash([]);
+    g.font=`600 ${10*d}px "IBM Plex Mono",monospace`;
+    g.fillStyle=CROPC;
+    g.fillText('B',tl.x+5*d,tl.y+14*d);
+    g.restore();
+    const horiz=this.edge==='right';
+    const overlap=Math.round(horiz?(this.A.width-this.ox):(this.A.height-this.oy));
+    const out=this.composite(this.pk,false);
+    badge(`Join · <b>${horiz?'side by side':'stacked'}</b>`
+        + ` · offset <b>${Math.round(this.ox)}, ${Math.round(this.oy)}</b>`
+        + ` · overlap <b>${overlap}px</b>`
+        + ` · result <b>${Math.round(out.width/this.pk)}×${Math.round(out.height/this.pk)}</b>`);
+    $('#join-readout').innerHTML=
+       `A <b>${this.A.width}×${this.A.height}</b><br>B <b>${this.B.width}×${this.B.height}</b>`
+      +`<br>overlap <b>${overlap}px</b><br>preview <b>${Math.round(this.pk*100)}%</b>`;
+  },
+
+  onDown(ev){
+    if(!this.A) return;
+    const pt=View.ptFromEvent(ev);
+    this.drag={x:pt.x,y:pt.y,ox:this.ox,oy:this.oy};
+    $('#overlay').setPointerCapture(ev.pointerId);
+  },
+  onMove(ev){
+    if(!this.drag) return;
+    const pt=View.ptFromEvent(ev);
+    this.ox=this.drag.ox+(pt.x-this.drag.x)/this.pk;
+    this.oy=this.drag.oy+(pt.y-this.drag.y)/this.pk;
+    this.clampOffset(); this.draw();
+  },
+  onUp(){ if(this.drag){ this.drag=null; this.draw(); } },
+  nudge(dx,dy){ this.ox+=dx; this.oy+=dy; this.clampOffset(); this.draw(); },
+  clampOffset(){
+    if(!this.A||!this.B) return;
+    // never let the halves separate completely or pass fully through each other
+    this.ox=clamp(this.ox,-this.B.width*0.9,this.A.width*1.1);
+    this.oy=clamp(this.oy,-this.B.height*0.9,this.A.height*1.1);
+  },
+
+  async findSeam(){
+    if(!this.A||!this.B) return;
+    const axis=this.edge==='right'?'h':'v';
+    const res=await busy('Searching for the seam',async()=>{ await raf(); return findOverlap(this.A,this.B,axis); });
+    if(!res) return;
+    if(res.score<0.22){
+      toast(`No convincing overlap (score ${res.score.toFixed(2)}). Drag B by hand, or switch on Difference to check.`,'warn');
+      return;
+    }
+    if(axis==='h'){ this.ox=this.A.width-res.overlap; this.oy=res.shift; }
+    else          { this.ox=res.shift; this.oy=this.A.height-res.overlap; }
+    this.clampOffset(); this.draw();
+    toast(`Seam found: ${Math.round(res.overlap)}px overlap, ${Math.round(res.shift)}px shift, score ${res.score.toFixed(2)}.`);
+  },
+
+  async commit(){
+    if(!this.A||!this.B) return;
+    const a=S.pages.find(p=>p.id===this.aId), b=S.pages.find(p=>p.id===this.bId);
+    let out;
+    await busy('Joining at full resolution',async()=>{ await raf(); out=this.composite(1,false); });
+    if(!out) return;
+    const pg=newPage(out,(a.name+'+'+b.name).slice(0,48));
+    pg.corners=insetCorners(out,0);
+    pg.geom=null;                       // already rectified; nothing to re-warp
+    pg.joinedFrom=[a.id,b.id];
+    /* Tone is applied to the FINAL page, once, so the two halves cannot end up
+       with different curves and step at the seam. Inherit A's look. */
+    pg.adj={ocr:Object.assign({},a.adj.ocr), read:Object.assign({},a.adj.read)};
+    pg.tuned=a.tuned;
+    pg.cornersVerified=a.cornersVerified&&b.cornersVerified;
+    setFlat(pg,out);
+    pg.thumb=thumbURL(out);
+    a.consumed=true; b.consumed=true;
+    a.include=false; b.include=false;   // the join replaces them in the export
+    /* Slot the join where A was, not at the end. Pushing it last put a
+       later loose photo ahead of it in the PDF, which is never what you
+       mean by "join the first two". */
+    S.pages.splice(S.pages.indexOf(a),0,pg);
+    S.activeId=pg.id;
+    this.A=this.B=null;
+    renderTray(); this.syncPickers();
+    /* Stay on Join. A four-photo job is usually two joins, and being thrown
+       to Export after the first one meant navigating back every time. */
+    this.userPicked=false;              // let the next pair default from page order
+    const left=this.pool().length;
+    if(left>=2){
+      await this.enter();
+      toast(`Joined into ${out.width}×${out.height}. ${left} page${left===1?'':'s'} left — next pair is ready.`);
+    }else{
+      this.A=this.B=null;
+      this.syncPickers(); this.draw();
+      toast(`Joined into ${out.width}×${out.height}. Nothing left to join.`);
+    }
+    updateStepStates();
+  }
+};
+
+/* ── overlap search helpers ─────────────────────────────────────── */
+function grayGrid(canvas,W){
+  const k=W/canvas.width, H=Math.max(4,Math.round(canvas.height*k));
+  const c=mkCanvas(W,H), g=ctx2d(c,{}); g.imageSmoothingQuality='high';
+  g.drawImage(canvas,0,0,W,H);
+  const d=g.getImageData(0,0,W,H).data;
+  const out=new Float32Array(W*H);
+  for(let i=0,j=0;i<d.length;i+=4,j++) out[j]=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+  return {w:W,h:H,d:out};
+}
+function transposeGrid(G){
+  const out=new Float32Array(G.w*G.h);
+  for(let y=0;y<G.h;y++) for(let x=0;x<G.w;x++) out[x*G.h+y]=G.d[y*G.w+x];
+  return {w:G.h,h:G.w,d:out};
+}
+/* NCC of A's last `k` rows against B's first `k` rows, B shifted by dx columns */
+function nccStrip(A,B,k,dx){
+  const W=Math.min(A.w,B.w);
+  let n=0,sa=0,sb=0,saa=0,sbb=0,sab=0;
+  const step=k>240?2:1;
+  for(let r=0;r<k;r+=step){
+    const ay=(A.h-k+r)*A.w, by=r*B.w;
+    for(let x=1;x<W-1;x+=1){
+      const bx=x+dx; if(bx<0||bx>=B.w) continue;
+      const a=A.d[ay+x], b=B.d[by+bx];
+      n++; sa+=a; sb+=b; saa+=a*a; sbb+=b*b; sab+=a*b;
+    }
+  }
+  if(n<80) return -1;
+  const ma=sa/n, mb=sb/n;
+  const va=saa/n-ma*ma, vb=sbb/n-mb*mb, cov=sab/n-ma*mb;
+  if(va<6||vb<6) return -1;                 // a blank strip matches everything
+  return cov/Math.sqrt(va*vb);
+}
+function findOverlap(cA,cB,axis){
+  const W=136;
+  let A=grayGrid(cA,W), B=grayGrid(cB,W);
+  if(axis==='h'){ A=transposeGrid(A); B=transposeGrid(B); }
+  const minH=Math.min(A.h,B.h);
+  const kMin=Math.max(8,Math.round(minH*0.05));
+  const kMax=Math.max(kMin+1,Math.round(minH*0.85));
+  let best={score:-1,k:kMin,dx:0};
+  for(let k=kMin;k<=kMax;k++){
+    const s=nccStrip(A,B,k,0);
+    if(s>best.score) best={score:s,k,dx:0};
+  }
+  for(let dx=-8;dx<=8;dx++){
+    if(!dx) continue;
+    const s=nccStrip(A,B,best.k,dx);
+    if(s>best.score) best={score:s,k:best.k,dx};
+  }
+  for(let k=Math.max(kMin,best.k-5);k<=Math.min(kMax,best.k+5);k++){
+    const s=nccStrip(A,B,k,best.dx);
+    if(s>best.score) best={score:s,k,dx:best.dx};
+  }
+  /* After transposing for the horizontal case, A.h indexes the overlap
+     axis and A.w indexes the shift axis — so both factors flip together. */
+  const up =(axis==='v'? cA.height : cA.width )/A.h;
+  const upx=(axis==='v'? cA.width  : cA.height)/A.w;
+  return {axis, overlap:best.k*up, shift:best.dx*upx, score:Math.max(0,best.score)};
+}
+
+function featherEdge(src,px,edge){
+  const c=copyCanvas(src), g=ctx2d(c,{});
+  px=clamp(px,1,edge==='top'||edge==='bottom'?c.height-1:c.width-1);
+  let grad;
+  if(edge==='top')        grad=g.createLinearGradient(0,0,0,px);
+  else if(edge==='bottom')grad=g.createLinearGradient(0,c.height,0,c.height-px);
+  else if(edge==='left')  grad=g.createLinearGradient(0,0,px,0);
+  else                    grad=g.createLinearGradient(c.width,0,c.width-px,0);
+  grad.addColorStop(0,'rgba(0,0,0,0)');
+  grad.addColorStop(1,'rgba(0,0,0,1)');
+  g.globalCompositeOperation='destination-in';
+  g.fillStyle=grad;
+  g.fillRect(0,0,c.width,c.height);
+  return c;
+}
+/* Direct two-image composite. Kept because findOverlap's tests exercise it
+   and it is the simplest reference for the join maths. */
+function compositeOffset(A,B,axis,overlap,shift,featherPx){
+  const sB=(axis==='v'? A.width/B.width : A.height/B.height);
+  const bw=B.width*sB, bh=B.height*sB;
+  let bx,by,W,H;
+  if(axis==='v'){ bx=shift; by=A.height-overlap; W=Math.max(A.width,bx+bw); H=Math.max(A.height,by+bh); }
+  else          { bx=A.width-overlap; by=shift;  W=Math.max(A.width,bx+bw); H=Math.max(A.height,by+bh); }
+  const ox=Math.min(0,bx), oy=Math.min(0,by);
+  const out=mkCanvas(W-ox,H-oy), g=ctx2d(out,{});
+  g.imageSmoothingQuality='high';
+  g.drawImage(A,-ox,-oy);
+  let srcB=B;
+  if(featherPx>0&&overlap>0){
+    const edge=axis==='v'?'top':'left';
+    srcB=featherEdge(B,featherPx/sB,edge);
+  }
+  g.drawImage(srcB,bx-ox,by-oy,bw,bh);
+  return out;
+}
+function insetCorners(c,f){
+  const dx=c.width*f, dy=c.height*f;
+  return [{x:dx,y:dy},{x:c.width-dx,y:dy},{x:c.width-dx,y:c.height-dy},{x:dx,y:c.height-dy}];
+}
+
+/* ════════════════════════════════════════════════════════════════
+   4 · STEP 2 — PERSPECTIVE CORRECTION
+   ════════════════════════════════════════════════════════════════ */
+const CNAMES=['TL','TR','BR','BL'];
+
+function order4(pts){
+  const c={x:pts.reduce((a,p)=>a+p.x,0)/4, y:pts.reduce((a,p)=>a+p.y,0)/4};
+  const tagged=pts.map(p=>({p,a:Math.atan2(p.y-c.y,p.x-c.x)}));
+  // start from the point closest to -135° (up-left) and walk clockwise
+  tagged.sort((m,n)=>m.a-n.a);
+  let start=0,bestd=1e9;
+  tagged.forEach((t,i)=>{ const d=Math.abs(t.a-(-Math.PI*0.75)); if(d<bestd){bestd=d;start=i;} });
+  return [0,1,2,3].map(i=>tagged[(start+i)%4].p);
+}
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+
+const Crop={
+  drag:-1, hover:-1, touch:false,
+  mode:'edit',        // 'edit' = quad over the photo, 'result' = the flat page
+
+  refreshButtons(){
+    const ok=cvReady();
+    $('#btn-detect').disabled=false;
+    $('#btn-detect').textContent=ok?'Detect edges automatically':'Detect edges (basic)';
+    $('#s-canny').disabled=!ok;
+    $('#s-blur').disabled=!ok;
+  },
+
+  draw(){
+    const p=activePage(); if(!p) return;
+    /* Once a page is flattened, SHOW the flattened page. Judging a crop from
+       a dimmed original is exactly what made the result hard to picture. */
+    const showResult=this.mode==='result'&&p.flat;
+    $('#scan-result').style.display=showResult?'block':'none';
+    ['#btn-flatten','#btn-asis'].forEach(id=>{ $(id).style.display=showResult?'none':'flex'; });
+    $('#btn-detect').style.display=(CONFIG.autoDetect&&!showResult)?'flex':'none';
+    if(showResult){
+      View.show(p.flat,52);
+      const g=View.overlayCtx(); drawRulers(g);
+      const done=S.pages.filter(x=>x.flat).length;
+      badge(`<b>${p.name}</b> · flattened to <b>${p.flat.width}×${p.flat.height}</b>`
+          + ` · ${done} of ${S.pages.length} done`);
+      return;
+    }
+    if(!p.corners||p.corners.length!==4) p.corners=insetCorners(p.raw,0.06);
+    const rotEl=$('#s-rot');
+    if(+rotEl.value!==p.rotate){ rotEl.value=p.rotate; $('#v-rot').textContent=p.rotate.toFixed(2).replace(/\.00$/,'')+'\u00b0'; }
+    View.show(p.raw,52);
+    const g=View.overlayCtx(), d=View.dpr, C=p.corners;
+    const vp=C.map(c=>View.toView(c.x,c.y));
+
+    // dim everything outside the quad — the scanner "found the page" cue
+    g.save();
+    g.fillStyle='rgba(28,27,25,.80)';
+    g.fillRect(View.ox,View.oy,View.src.width*View.scale,View.src.height*View.scale);
+    g.globalCompositeOperation='destination-out';
+    g.beginPath(); g.moveTo(vp[0].x,vp[0].y);
+    for(let i=1;i<4;i++) g.lineTo(vp[i].x,vp[i].y);
+    g.closePath(); g.fill();
+    g.restore();
+
+    drawRulers(g);
+
+    g.save();
+    g.strokeStyle=ACCENT; g.lineWidth=1.6*d;
+    g.beginPath(); g.moveTo(vp[0].x,vp[0].y);
+    for(let i=1;i<4;i++) g.lineTo(vp[i].x,vp[i].y);
+    g.closePath(); g.stroke();
+    // thirds guides help spot a bowed edge
+    g.globalAlpha=.24; g.lineWidth=1*d;
+    for(let t=1;t<=2;t++){
+      const f=t/3;
+      const a={x:vp[0].x+(vp[3].x-vp[0].x)*f, y:vp[0].y+(vp[3].y-vp[0].y)*f};
+      const b={x:vp[1].x+(vp[2].x-vp[1].x)*f, y:vp[1].y+(vp[2].y-vp[1].y)*f};
+      g.beginPath(); g.moveTo(a.x,a.y); g.lineTo(b.x,b.y); g.stroke();
+      const e={x:vp[0].x+(vp[1].x-vp[0].x)*f, y:vp[0].y+(vp[1].y-vp[0].y)*f};
+      const f2={x:vp[3].x+(vp[2].x-vp[3].x)*f, y:vp[3].y+(vp[2].y-vp[3].y)*f};
+      g.beginPath(); g.moveTo(e.x,e.y); g.lineTo(f2.x,f2.y); g.stroke();
+    }
+    g.globalAlpha=1; g.restore();
+
+    const live=this.drag>=0?this.drag:(this.hover>=0?this.hover:-1);
+    vp.forEach((v,i)=> drawRegMark(g,v.x,v.y,CNAMES[i],i===S.selCorner||i===live,ACCENT));
+    // Loupe on HOVER as well as drag — finding the paper edge is the hard
+    // part, and you want the magnifier before you commit to a grab.
+    if(live>=0) drawLoupe(g,C[live].x,C[live].y,this.touch);
+
+    const o=this.outSize(p);
+    badge(`<b>${p.name}</b> · source ${p.raw.width}×${p.raw.height} · flattens to `
+        + `<b>${o.W}×${o.H}</b>`
+        + (p.turns?` · <b style="color:#00d3c0">turned ${p.turns*90}°</b>`:'')
+        + (p.cornersVerified?'':' · <span style="color:#ffc247">corners unchecked</span>'));
+    $('#corner-readout').innerHTML=C.map((c,i)=>
+      `${CNAMES[i]} <b>${Math.round(c.x)}, ${Math.round(c.y)}</b>`).join('<br>')+
+      `<br>top <b>${Math.round(dist(C[0],C[1]))}</b> · bottom <b>${Math.round(dist(C[3],C[2]))}</b>`+
+      `<br>left <b>${Math.round(dist(C[0],C[3]))}</b> · right <b>${Math.round(dist(C[1],C[2]))}</b>`;
+  },
+
+  outSize(p){
+    const C=p.corners;
+    let W=Math.round(Math.max(dist(C[0],C[1]),dist(C[3],C[2])));
+    let H=Math.round(Math.max(dist(C[0],C[3]),dist(C[1],C[2])));
+    if($('#c-force-portrait').checked && W>H){ const t=W; W=H; H=t; }
+    return {W:Math.max(16,W),H:Math.max(16,H)};
+  },
+
+  hit(pt){
+    const p=activePage(); if(!p) return -1;
+    let best=-1,bd=22*View.dpr;
+    p.corners.forEach((c,i)=>{
+      const v=View.toView(c.x,c.y);
+      const d=Math.hypot(v.x-pt.cx,v.y-pt.cy);
+      if(d<bd){ bd=d; best=i; }
+    });
+    return best;
+  },
+
+  onDown(ev){
+    const p=activePage(); if(!p) return;
+    const pt=View.ptFromEvent(ev);
+    const i=this.hit(pt);
+    if(i<0) return;
+    this.drag=i; S.selCorner=i;
+    $('#overlay').setPointerCapture(ev.pointerId);
+    this.draw();
+  },
+  onMove(ev){
+    const p=activePage(); if(!p) return;
+    this.touch=ev.pointerType==='touch';
+    if(this.drag<0){
+      const h=this.hit(View.ptFromEvent(ev));
+      if(!S.spaceDown) $('#overlay').style.cursor=h>=0?'grab':'default';
+      if(h!==this.hover){ this.hover=h; this.draw(); }
+      return;
+    }
+    const pt=View.ptFromEvent(ev);
+    p.corners[this.drag]={x:clamp(pt.x,0,p.raw.width),y:clamp(pt.y,0,p.raw.height)};
+    this.draw();
+  },
+  onUp(){
+    if(this.drag<0) return;
+    const p=activePage();
+    this.drag=-1;
+    p.cornersVerified=true;      // a human physically moved a corner
+    p.corners=order4(p.corners);
+    this.draw();
+  },
+  nudge(dx,dy){
+    const p=activePage(); if(!p||S.selCorner<0) return;
+    const c=p.corners[S.selCorner];
+    c.x=clamp(c.x+dx,0,p.raw.width); c.y=clamp(c.y+dy,0,p.raw.height);
+    p.cornersVerified=true;
+    this.draw();
+  },
+
+  /* ── automatic edge detection ────────────────────────────────── */
+  async detect(){
+    const p=activePage(); if(!p) return;
+    const t=+$('#s-canny').value, b=+$('#s-blur').value;
+    const found=await busy('Finding document edges',async()=>{
+      await raf();
+      return cvReady() ? detectQuad(p.raw,t,b) : detectQuadJS(p.raw);
+    });
+    if(!found){ toast('No clean rectangle found. Try lowering the edge threshold, or place the corners by hand.','warn'); return; }
+    p.corners=found; S.selCorner=-1;
+    p.cornersVerified=false;     // confident is not the same as correct
+    this.draw();
+    toast('Edges detected. Check each corner before flattening.');
+  },
+
+  async flatten(opts){
+    opts=opts||{};
+    const p=activePage(); if(!p) return;
+    const {W,H}=this.outSize(p);
+    if(W*H>52e6){ toast('That flattens to '+W+'×'+H+' px — over 52 MP. Tighten the corners.','err'); return; }
+    await busy('Applying perspective transform',async()=>{
+      await raf();
+      let corners=p.corners.slice();
+      if($('#c-force-portrait').checked){
+        const wA=Math.max(dist(corners[0],corners[1]),dist(corners[3],corners[2]));
+        const hA=Math.max(dist(corners[0],corners[3]),dist(corners[1],corners[2]));
+        if(wA>hA) corners=[corners[3],corners[0],corners[1],corners[2]];
+      }
+      const rot=+$('#s-rot').value;
+      /* Record the RESOLVED geometry. Join re-runs exactly this at a matched
+         scale straight from p.raw, which is what keeps joining to ONE resample
+         per photo instead of two. Without it renderFlatAt falls back to
+         rescaling the already-warped canvas, silently costing the benefit. */
+      // turns are already baked into p.raw, so geometry carries none
+      p.geom={corners:corners.map(c=>({x:c.x,y:c.y})), W, H, rot, turns:0};
+      p.rotate=rot;
+      const out=renderFlatAt(p,1);
+      setFlat(p,out);
+      p.thumb=thumbURL(out);
+    });
+    p.flattenedAt=Date.now();
+    renderTray();
+    // land on the result so the outcome is visible instead of jumping away
+    this.mode='result'; View.resetView(); this.draw();
+    if(opts.stay) return;
+    const done=S.pages.filter(x=>x.flat).length;
+    const left=S.pages.filter(x=>!x.flat).length;
+    toast(`Flattened to ${p.flat.width}×${p.flat.height}. ${done} of ${S.pages.length} done`
+        + (left?`, ${left} to go.`:' — all straightened.'));
+  },
+
+  /* Some photos arrive square-on and need no crop at all. Taking the flat
+     straight from the source keeps them at zero resamples. */
+  useAsIs(){
+    const p=activePage(); if(!p) return;
+    p.geom=null;
+    p.corners=insetCorners(p.raw,0);
+    p.cornersVerified=true;
+    setFlat(p,p.raw);
+    p.thumb=thumbURL(p.raw);
+    p.flattenedAt=Date.now();
+    renderTray();
+    this.mode='result'; View.resetView(); this.draw();
+    toast(`Kept as-is at ${p.raw.width}×${p.raw.height} — no cropping, nothing resampled.`);
+  },
+
+  nextPage(){
+    const next=S.pages.find(x=>!x.flat);
+    if(next){
+      S.activeId=next.id; S.selCorner=-1; this.hover=-1; this.mode='edit';
+      View.resetView(); renderTray(); drawStep();
+      toast(`Now on “${next.name}”.`);
+    }else{
+      toast('Every page is straightened.');
+      goStep(STEP.ADJUST);
+    }
+  }
+};
+
+/* ── OpenCV: contour-based quad detection ───────────────────────── */
+function detectQuad(srcCanvas,cannyT,blurK){
+  const work=scaleCanvas(srcCanvas,900);
+  const k=srcCanvas.width/work.width;
+  return withMats(t=>{
+    const src=t(cv.imread(work));
+    const gray=t(new cv.Mat());
+    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+    const bl=t(new cv.Mat());
+    const kk=Math.max(1,blurK|1);
+    cv.GaussianBlur(gray,bl,new cv.Size(kk,kk),0,0,cv.BORDER_DEFAULT);
+    const edges=t(new cv.Mat());
+    cv.Canny(bl,edges,cannyT,cannyT*2.5,3,false);
+    const kern=t(cv.getStructuringElement(cv.MORPH_RECT,new cv.Size(5,5)));
+    cv.morphologyEx(edges,edges,cv.MORPH_CLOSE,kern);
+
+    const contours=t(new cv.MatVector()), hier=t(new cv.Mat());
+    cv.findContours(edges,contours,hier,cv.RETR_LIST,cv.CHAIN_APPROX_SIMPLE);
+
+    const imgArea=work.width*work.height;
+    const cands=[];
+    for(let i=0;i<contours.size();i++){
+      const c=contours.get(i);
+      const a=cv.contourArea(c);
+      if(a>imgArea*0.12) cands.push({i,a});
+    }
+    cands.sort((x,y)=>y.a-x.a);
+
+    for(const cand of cands.slice(0,10)){
+      const c=contours.get(cand.i);
+      const peri=cv.arcLength(c,true);
+      for(const eps of [0.02,0.035,0.05,0.012]){
+        const ap=new cv.Mat();
+        cv.approxPolyDP(c,ap,eps*peri,true);
+        const ok=ap.rows===4 && cv.isContourConvex(ap) && cv.contourArea(ap)>imgArea*0.12;
+        if(ok){
+          const d=ap.data32S, pts=[];
+          for(let j=0;j<4;j++) pts.push({x:d[j*2]*k,y:d[j*2+1]*k});
+          ap.delete();
+          return order4(pts);
+        }
+        ap.delete();
+      }
+    }
+    return null;
+  });
+}
+
+/* ── Pure-JS quad detection fallback ──────────────────────────────
+   Otsu, then the largest bright 4-connected blob, then its corner extremes.
+   Assumes a light page on a darker ground — the common copy-stand case.
+   Weaker than Canny + approxPolyDP on a low-contrast background, so it is
+   wired as the fallback and the button says so. Changes the blocked-CDN
+   story from "manual only" to "detects, just less well". */
+function detectQuadJS(srcCanvas){
+  const work=scaleCanvas(srcCanvas,440), w=work.width, h=work.height;
+  const d=ctx2d(work).getImageData(0,0,w,h).data;
+  const N=w*h, gray=new Uint8Array(N), hist=new Uint32Array(256);
+  for(let i=0,q=0;i<N;i++,q+=4){
+    const g=(d[q]*0.299+d[q+1]*0.587+d[q+2]*0.114)|0;
+    gray[i]=g; hist[g]++;
+  }
+  let sum=0; for(let t=0;t<256;t++) sum+=t*hist[t];
+  let wB=0,sB=0,best=-1,thr=128;
+  for(let t=0;t<256;t++){
+    wB+=hist[t]; if(!wB) continue;
+    const wF=N-wB; if(!wF) break;
+    sB+=t*hist[t];
+    const v=wB*wF*Math.pow(sB/wB-(sum-sB)/wF,2);
+    if(v>best){ best=v; thr=t; }
+  }
+  const lab=new Int32Array(N).fill(-1), q2=new Int32Array(N);
+  let bestId=-1,bestArea=0,id=0;
+  for(let st=0;st<N;st++){
+    if(gray[st]<=thr||lab[st]>=0) continue;
+    let head=0,tail=0,area=0; q2[tail++]=st; lab[st]=id;
+    while(head<tail){
+      const q3=q2[head++]; area++;
+      const x=q3%w, y=(q3-x)/w;
+      if(x>0   && gray[q3-1]>thr && lab[q3-1]<0){ lab[q3-1]=id; q2[tail++]=q3-1; }
+      if(x<w-1 && gray[q3+1]>thr && lab[q3+1]<0){ lab[q3+1]=id; q2[tail++]=q3+1; }
+      if(y>0   && gray[q3-w]>thr && lab[q3-w]<0){ lab[q3-w]=id; q2[tail++]=q3-w; }
+      if(y<h-1 && gray[q3+w]>thr && lab[q3+w]<0){ lab[q3+w]=id; q2[tail++]=q3+w; }
+    }
+    if(area>bestArea){ bestArea=area; bestId=id; }
+    id++;
+  }
+  if(bestId<0||bestArea<N*0.10) return null;
+  let tl=[0,0,1e9], tr=[0,0,-1e9], br=[0,0,-1e9], bl=[0,0,1e9];
+  for(let i=0;i<N;i++){
+    if(lab[i]!==bestId) continue;
+    const x=i%w, y=(i-x)/w, sm=x+y, df=x-y;
+    if(sm<tl[2]) tl=[x,y,sm];
+    if(sm>br[2]) br=[x,y,sm];
+    if(df>tr[2]) tr=[x,y,df];
+    if(df<bl[2]) bl=[x,y,df];
+  }
+  const kx=srcCanvas.width/w, ky=srcCanvas.height/h;
+  return order4([tl,tr,br,bl].map(q4=>({x:q4[0]*kx, y:q4[1]*ky})));
+}
+
+/* ── OpenCV warp ────────────────────────────────────────────────── */
+function warpCV(srcCanvas,C,W,H){
+  const out=mkCanvas(W,H);
+  withMats(t=>{
+    const src=t(cv.imread(srcCanvas));
+    const dst=t(new cv.Mat());
+    const sTri=t(cv.matFromArray(4,1,cv.CV_32FC2,[C[0].x,C[0].y,C[1].x,C[1].y,C[2].x,C[2].y,C[3].x,C[3].y]));
+    const dTri=t(cv.matFromArray(4,1,cv.CV_32FC2,[0,0, W,0, W,H, 0,H]));
+    const M=t(cv.getPerspectiveTransform(sTri,dTri));
+    cv.warpPerspective(src,dst,M,new cv.Size(W,H),cv.INTER_CUBIC,cv.BORDER_REPLICATE,new cv.Scalar());
+    cv.imshow(out,dst);
+  });
+  return out;
+}
+
+/* ── Pure-JS warp fallback ───────────────────────────────────────
+   8×8 Gaussian elimination for the homography, then inverse mapping
+   with bilinear sampling. Slower than WASM but it means a blocked
+   OpenCV CDN degrades the tool instead of breaking it.            */
+function homography(from,to){
+  const A=[],b=[];
+  for(let i=0;i<4;i++){
+    const {x,y}=from[i], u=to[i].x, v=to[i].y;
+    A.push([x,y,1,0,0,0,-u*x,-u*y]); b.push(u);
+    A.push([0,0,0,x,y,1,-v*x,-v*y]); b.push(v);
+  }
+  const n=8;
+  for(let i=0;i<n;i++) A[i].push(b[i]);
+  for(let col=0;col<n;col++){
+    let piv=col;
+    for(let r=col+1;r<n;r++) if(Math.abs(A[r][col])>Math.abs(A[piv][col])) piv=r;
+    if(Math.abs(A[piv][col])<1e-12) throw new Error('degenerate quad');
+    [A[col],A[piv]]=[A[piv],A[col]];
+    const pv=A[col][col];
+    for(let c=col;c<=n;c++) A[col][c]/=pv;
+    for(let r=0;r<n;r++){
+      if(r===col) continue;
+      const f=A[r][col];
+      if(!f) continue;
+      for(let c=col;c<=n;c++) A[r][c]-=f*A[col][c];
+    }
+  }
+  return A.map(r=>r[n]);
+}
+function warpJS(srcCanvas,C,W,H){
+  /* Pre-scale so getImageData never allocates the full frame when the output
+     is smaller. A stitched 5000x7000 board is ~140 MB of Uint8ClampedArray,
+     and this is the path that runs when OpenCV is NOT available. 1.25x the
+     output long edge leaves enough detail for bilinear sampling. */
+  let src=srcCanvas, C2=C;
+  const longest=Math.max(srcCanvas.width,srcCanvas.height);
+  const need=Math.max(W,H)*1.25/longest;
+  if(need<1){
+    src=scaleCanvas(srcCanvas,Math.max(64,Math.round(longest*clamp(need,0.05,1))));
+    const kx=src.width/srcCanvas.width, ky=src.height/srcCanvas.height;
+    C2=C.map(q=>({x:q.x*kx,y:q.y*ky}));
+  }
+  const rect=[{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}];
+  const h=homography(rect,C2);                      // output plane -> source plane
+  const sg=ctx2d(src).getImageData(0,0,src.width,src.height);
+  const sw=sg.width, sh=sg.height, sd=sg.data;
+  const out=mkCanvas(W,H), og=ctx2d(out,{});
+  const od=og.createImageData(W,H), dd=od.data;
+  for(let v=0,o=0;v<H;v++){
+    for(let u=0;u<W;u++,o+=4){
+      const den=h[6]*u+h[7]*v+1;
+      let x=(h[0]*u+h[1]*v+h[2])/den, y=(h[3]*u+h[4]*v+h[5])/den;
+      x=clamp(x,0,sw-1.001); y=clamp(y,0,sh-1.001);
+      const x0=x|0, y0=y|0, fx=x-x0, fy=y-y0;
+      const i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
+      const w00=(1-fx)*(1-fy), w10=fx*(1-fy), w01=(1-fx)*fy, w11=fx*fy;
+      dd[o]  =sd[i00]*w00+sd[i10]*w10+sd[i01]*w01+sd[i11]*w11;
+      dd[o+1]=sd[i00+1]*w00+sd[i10+1]*w10+sd[i01+1]*w01+sd[i11+1]*w11;
+      dd[o+2]=sd[i00+2]*w00+sd[i10+2]*w10+sd[i01+2]*w01+sd[i11+2]*w11;
+      dd[o+3]=255;
+    }
+  }
+  og.putImageData(od,0,0);
+  return out;
+}
+/* Rotate, then crop to the largest inscribed rectangle so there are
+   no empty wedges in the corners. */
+/* Lossless quarter turns — an exact multiple of 90 degrees through a canvas
+   transform resamples nothing. Applied at flatten time, never after: turning
+   an already-flat page would invalidate every region rect. */
+function rotate90(src,turns){
+  turns=((turns%4)+4)%4;
+  if(!turns) return src;
+  const swap=turns%2===1;
+  const out=mkCanvas(swap?src.height:src.width, swap?src.width:src.height);
+  const g=ctx2d(out,{});
+  g.translate(out.width/2,out.height/2);
+  g.rotate(turns*Math.PI/2);
+  g.drawImage(src,-src.width/2,-src.height/2);
+  return out;
+}
+
+function rotateCrop(src,deg){
+  const rad=Math.abs(deg*Math.PI/180), W=src.width, H=src.height;
+  const sa=Math.sin(rad), ca=Math.cos(rad);
+  const long=Math.max(W,H), short=Math.min(W,H);
+  let wr,hr;
+  if(short<=2*sa*ca*long||Math.abs(sa-ca)<1e-10){
+    const x=0.5*short;
+    if(W>=H){ wr=x/sa; hr=x/ca; } else { wr=x/ca; hr=x/sa; }
+  }else{
+    const c2=ca*ca-sa*sa;
+    wr=(W*ca-H*sa)/c2; hr=(H*ca-W*sa)/c2;
+  }
+  wr=clamp(Math.floor(wr),8,W); hr=clamp(Math.floor(hr),8,H);
+  const out=mkCanvas(wr,hr), g=ctx2d(out,{});
+  g.imageSmoothingQuality='high';
+  g.translate(wr/2,hr/2);
+  g.rotate(deg*Math.PI/180);
+  g.drawImage(src,-W/2,-H/2);
+  return out;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   5 · STEP 3 — TONE PIPELINE
+   LUT for the four lighting sliders (one pass, no per-frame Mats),
+   OpenCV only where the operation genuinely needs it.
+   ════════════════════════════════════════════════════════════════ */
+/* ── Illumination flattening ───────────────────────────────────────
+   Estimate the paper-white field and divide it out. Unlike toneLUT this is
+   SPATIAL, so it fixes a lighting gradient no global curve can touch — and
+   unlike adaptiveInPlace it stays continuous tone, so thin CJK strokes
+   survive. Max-pool drops the ink and keeps the paper; blurring that gives
+   a smooth field; dividing normalises the page toward uniform white.
+
+   FIELD_CELLS makes the cell a fraction of the long edge, which is what
+   keeps the 1400px proxy preview matching the full-res export. */
+const FIELD_CELLS=44;
+
+function boxBlur3(src,w,h,r,passes){
+  let a=Float32Array.from(src), b=new Float32Array(a.length);
+  for(let pz=0;pz<passes;pz++){
+    for(let y=0;y<h;y++) for(let ch=0;ch<3;ch++){
+      let sum=0,cnt=0;
+      for(let x=-r;x<=r;x++){ const xx=clamp(x,0,w-1); sum+=a[(y*w+xx)*3+ch]; cnt++; }
+      for(let x=0;x<w;x++){
+        b[(y*w+x)*3+ch]=sum/cnt;
+        const xo=clamp(x-r,0,w-1), xi=clamp(x+r+1,0,w-1);
+        sum+=a[(y*w+xi)*3+ch]-a[(y*w+xo)*3+ch];
+      }
+    }
+    let t=a;a=b;b=t;
+    for(let x=0;x<w;x++) for(let ch=0;ch<3;ch++){
+      let sum=0,cnt=0;
+      for(let y=-r;y<=r;y++){ const yy=clamp(y,0,h-1); sum+=a[(yy*w+x)*3+ch]; cnt++; }
+      for(let y=0;y<h;y++){
+        b[(y*w+x)*3+ch]=sum/cnt;
+        const yo=clamp(y-r,0,h-1), yi=clamp(y+r+1,0,h-1);
+        sum+=a[(yi*w+x)*3+ch]-a[(yo*w+x)*3+ch];
+      }
+    }
+    t=a;a=b;b=t;
+  }
+  return a;
+}
+
+function illumField(d,w,h){
+  const cell=Math.max(6,Math.round(Math.max(w,h)/FIELD_CELLS));
+  const bw=Math.ceil(w/cell), bh=Math.ceil(h/cell);
+  const small=new Float32Array(bw*bh*3);
+  for(let by=0;by<bh;by++) for(let bx=0;bx<bw;bx++){
+    const y0=by*cell, y1=Math.min(h,y0+cell), x0=bx*cell, x1=Math.min(w,x0+cell);
+    let mr=0,mg=0,mb=0;
+    for(let y=y0;y<y1;y++){
+      let q=(y*w+x0)<<2;
+      for(let x=x0;x<x1;x++,q+=4){
+        if(d[q]>mr)mr=d[q];
+        if(d[q+1]>mg)mg=d[q+1];
+        if(d[q+2]>mb)mb=d[q+2];
+      }
+    }
+    const i=(by*bw+bx)*3; small[i]=mr; small[i+1]=mg; small[i+2]=mb;
+  }
+  return {f:boxBlur3(small,bw,bh,2,2), bw, bh, cell};
+}
+
+function flattenLight(id,strength){
+  if(!(strength>0)) return id;
+  const w=id.width, h=id.height, d=id.data, k=strength/100;
+  const {f,bw,bh,cell}=illumField(d,w,h);
+  for(let y=0;y<h;y++){
+    const gy=clamp(y/cell-0.5,0,bh-1);
+    const y0=gy|0, y1=Math.min(bh-1,y0+1), fy=gy-y0;
+    let q=(y*w)<<2;
+    for(let x=0;x<w;x++,q+=4){
+      const gx=clamp(x/cell-0.5,0,bw-1);
+      const x0=gx|0, x1=Math.min(bw-1,x0+1), fx=gx-x0;
+      for(let ch=0;ch<3;ch++){
+        const a=f[(y0*bw+x0)*3+ch]+(f[(y0*bw+x1)*3+ch]-f[(y0*bw+x0)*3+ch])*fx;
+        const b=f[(y1*bw+x0)*3+ch]+(f[(y1*bw+x1)*3+ch]-f[(y1*bw+x0)*3+ch])*fx;
+        const bg=Math.max(24,a+(b-a)*fy);
+        const norm=d[q+ch]*250/bg;
+        const v=d[q+ch]+(norm-d[q+ch])*k;
+        d[q+ch]=v<0?0:v>255?255:v;
+      }
+    }
+  }
+  return id;
+}
+
+function toneLUT(a){
+  const lut=new Uint8Array(256);
+  const cf=Math.pow((a.con+100)/100,2);
+  const bo=a.bri*2.55;
+  for(let i=0;i<256;i++){
+    const n=i/255;
+    let v=i;
+    v+=a.sha*2.4*Math.pow(1-n,2.2);     // lift darks
+    v+=a.hig*2.4*Math.pow(n,2.2);       // negative pulls back glare
+    v+=bo;
+    v=((v/255-0.5)*cf+0.5)*255;
+    lut[i]=clamp(Math.round(v),0,255);
+  }
+  return lut;
+}
+function sharpenData(id,amt){
+  const {width:w,height:h,data:s}=id;
+  const out=new Uint8ClampedArray(s);
+  for(let y=1;y<h-1;y++){
+    for(let x=1;x<w-1;x++){
+      const i=(y*w+x)*4;
+      for(let c=0;c<3;c++){
+        const p=i+c;
+        const blur=(s[p-w*4-4]+s[p-w*4]+s[p-w*4+4]+s[p-4]+s[p]+s[p+4]+s[p+w*4-4]+s[p+w*4]+s[p+w*4+4])/9;
+        out[p]=clamp(s[p]+(s[p]-blur)*amt*2.2,0,255);
+      }
+    }
+  }
+  return new ImageData(out,w,h);
+}
+function grayInPlace(c){
+  const g=ctx2d(c), id=g.getImageData(0,0,c.width,c.height), d=id.data;
+  for(let i=0;i<d.length;i+=4){
+    const y=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    d[i]=d[i+1]=d[i+2]=y;
+  }
+  g.putImageData(id,0,0); return c;
+}
+function threshInPlace(c,t){
+  const g=ctx2d(c), id=g.getImageData(0,0,c.width,c.height), d=id.data;
+  for(let i=0;i<d.length;i+=4){
+    const y=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    const v=y<t?0:255;
+    d[i]=d[i+1]=d[i+2]=v;
+  }
+  g.putImageData(id,0,0); return c;
+}
+function otsu(c){
+  const g=ctx2d(c), d=g.getImageData(0,0,c.width,c.height).data;
+  const hist=new Float64Array(256); let n=0;
+  for(let i=0;i<d.length;i+=4){ hist[(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])|0]++; n++; }
+  let sum=0; for(let i=0;i<256;i++) sum+=i*hist[i];
+  let sB=0,wB=0,best=0,thr=128;
+  for(let t=0;t<256;t++){
+    wB+=hist[t]; if(!wB) continue;
+    const wF=n-wB; if(!wF) break;
+    sB+=t*hist[t];
+    const mB=sB/wB, mF=(sum-sB)/wF;
+    const v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>best){ best=v; thr=t; }
+  }
+  return thr;
+}
+/* ── Local-mean ink mask over an integral image ───────────────────
+   Returns 1 for ink, 0 for paper. Used by the slicer (always) and by
+   Magic enhance when OpenCV is missing.
+
+   Local rather than global on purpose. A raw phone photo of a menu is
+   never evenly lit, and a single global cut turns the shadowed half of
+   the page into solid ink — which is exactly the failure that makes
+   whitespace projection produce nonsense bands.                     */
+function localInkMask(src,block,C){
+  const w=src.width,h=src.height;
+  const d=ctx2d(src).getImageData(0,0,w,h).data;
+  const gray=new Float64Array(w*h);
+  for(let i=0,j=0;i<d.length;i+=4,j++) gray[j]=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+  const I=new Float64Array((w+1)*(h+1));
+  for(let y=0;y<h;y++){
+    let run=0;
+    for(let x=0;x<w;x++){ run+=gray[y*w+x]; I[(y+1)*(w+1)+(x+1)]=I[y*(w+1)+(x+1)]+run; }
+  }
+  const r=Math.max(1,block>>1), ink=new Uint8Array(w*h);
+  for(let y=0;y<h;y++){
+    const y0=Math.max(0,y-r), y1=Math.min(h-1,y+r);
+    for(let x=0;x<w;x++){
+      const x0=Math.max(0,x-r), x1=Math.min(w-1,x+r);
+      const area=(x1-x0+1)*(y1-y0+1);
+      const sum=I[(y1+1)*(w+1)+(x1+1)]-I[y0*(w+1)+(x1+1)]-I[(y1+1)*(w+1)+x0]+I[y0*(w+1)+x0];
+      ink[y*w+x]=gray[y*w+x]<(sum/area-C)?1:0;
+    }
+  }
+  return ink;
+}
+/* Window sized to the page rather than a fixed pixel count, so proxies
+   of different sizes see the same structure. */
+function median(a){ if(!a.length) return 0; const b=a.slice().sort((x,y)=>x-y); const m=b.length>>1;
+  return b.length%2?b[m]:(b[m-1]+b[m])/2; }
+function sliceBlockFor(c){ return Math.max(15,Math.round(Math.min(c.width,c.height)*0.045)|1); }
+
+/* Adaptive threshold. OpenCV's Gaussian-weighted version when it's
+   there; otherwise an integral-image local mean, which is the same
+   idea and keeps Magic enhance alive without WASM. */
+function adaptiveInPlace(c,block,C,despeckle){
+  block=Math.max(3,block|1);
+  if(cvReady()){
+    withMats(t=>{
+      const src=t(cv.imread(c)), gray=t(new cv.Mat()), dst=t(new cv.Mat());
+      cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+      if(despeckle) cv.medianBlur(gray,gray,3);
+      cv.adaptiveThreshold(gray,dst,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY,block,C);
+      if(despeckle) cv.medianBlur(dst,dst,3);
+      cv.imshow(c,dst);
+    });
+    return c;
+  }
+  const g=ctx2d(c), w=c.width, h=c.height;
+  const ink=localInkMask(c,block,C);
+  const id=g.getImageData(0,0,w,h), d=id.data;
+  for(let j=0,q=0;j<ink.length;j++,q+=4){ const v=ink[j]?0:255; d[q]=d[q+1]=d[q+2]=v; }
+  g.putImageData(id,0,0);
+  return despeckle?majority3(c):c;
+}
+function majority3(c){
+  const g=ctx2d(c), w=c.width,h=c.height;
+  const id=g.getImageData(0,0,w,h), d=id.data, o=new Uint8ClampedArray(d);
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+    let n=0;
+    for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(d[((y+dy)*w+(x+dx))*4]>127) n++;
+    const v=n>=5?255:0, p=(y*w+x)*4;
+    o[p]=o[p+1]=o[p+2]=v;
+  }
+  g.putImageData(new ImageData(o,w,h),0,0);
+  return c;
+}
+/* CLAHE on the L channel — recovers text out of a shadowed fold
+   without crushing colour, which a global curve cannot do. */
+function claheInPlace(c){
+  if(cvReady()){
+    withMats(t=>{
+      const src=t(cv.imread(c)), rgb=t(new cv.Mat()), lab=t(new cv.Mat());
+      cv.cvtColor(src,rgb,cv.COLOR_RGBA2RGB);
+      cv.cvtColor(rgb,lab,cv.COLOR_RGB2Lab);
+      const ch=t(new cv.MatVector());
+      cv.split(lab,ch);
+      const L=t(ch.get(0));
+      const cl=new cv.CLAHE(2.4,new cv.Size(8,8));
+      cl.apply(L,L); cl.delete();
+      const merged=t(new cv.MatVector());
+      merged.push_back(L); merged.push_back(t(ch.get(1))); merged.push_back(t(ch.get(2)));
+      const outLab=t(new cv.Mat());
+      cv.merge(merged,outLab);
+      const out=t(new cv.Mat());
+      cv.cvtColor(outLab,out,cv.COLOR_Lab2RGB);
+      cv.imshow(c,out);
+    });
+    return c;
+  }
+  // fallback: 1%–99% percentile stretch per channel
+  const g=ctx2d(c), id=g.getImageData(0,0,c.width,c.height), d=id.data;
+  for(let ch=0;ch<3;ch++){
+    const hist=new Uint32Array(256);
+    for(let i=ch;i<d.length;i+=4) hist[d[i]]++;
+    const total=d.length/4;
+    let lo=0,hi=255,acc=0;
+    for(let i=0;i<256;i++){ acc+=hist[i]; if(acc>total*0.01){ lo=i; break; } }
+    acc=0;
+    for(let i=255;i>=0;i--){ acc+=hist[i]; if(acc>total*0.01){ hi=i; break; } }
+    const span=Math.max(1,hi-lo);
+    for(let i=ch;i<d.length;i+=4) d[i]=clamp(((d[i]-lo)/span)*255,0,255);
+  }
+  g.putImageData(id,0,0);
+  return c;
+}
+
+function processCanvas(src,a,refW){
+  /* refW = the resolution these adj values were authored against (the flat
+     width). Scaling spatial kernels by src.width/refW is what makes the
+     1400px proxy preview actually predict the full-res export. */
+  const k=refW?src.width/refW:1;
+  const c=copyCanvas(src), g=ctx2d(c);
+  if(a.flat>0||a.bri||a.con||a.sha||a.hig||a.shp){
+    let id=g.getImageData(0,0,c.width,c.height);
+    if(a.flat>0) flattenLight(id,a.flat);   // spatial — must precede the global LUT
+    if(a.bri||a.con||a.sha||a.hig){
+      const lut=toneLUT(a), d=id.data;
+      for(let i=0;i<d.length;i+=4){ d[i]=lut[d[i]]; d[i+1]=lut[d[i+1]]; d[i+2]=lut[d[i+2]]; }
+    }
+    if(a.shp>0) id=sharpenData(id,a.shp/100);
+    g.putImageData(id,0,0);
+  }
+  switch(a.mode){
+    case 'gray':  return grayInPlace(c);
+    case 'bw':    return threshInPlace(c,a.thresh);
+    case 'magic': return adaptiveInPlace(c,Math.max(3,Math.round(a.block*k)|1),a.cconst,a.despeckle);
+    case 'clahe': return claheInPlace(c);
+    default:      return c;
+  }
+}
+
+/* flat does the heavy lifting; magic gets a smaller block because the
+   background is already even by the time it runs. Grey beats hard mono for
+   OCR here — thresholding drops thin strokes that OCR can still read. */
+/* ── Auto-enhance ──────────────────────────────────────────────────
+   Measures the page, then picks settings from what it finds. Four
+   measurements, each mapped to one control:
+
+     gradient   spread of the blurred illumination field  -> flat
+     span       p2..p98 luma spread                       -> con
+     paperWhite p98 after notional flattening             -> bri
+     sharpness  variance of a 3x3 Laplacian, normalised   -> shp
+
+   Reported back to the user so the numbers are inspectable rather than
+   magic. Mode is grey: OCR reads thin strokes better than hard mono. */
+function histStats(d,N){
+  const hist=new Uint32Array(256);
+  for(let i=0,q=0;i<N;i++,q+=4) hist[(0.299*d[q]+0.587*d[q+1]+0.114*d[q+2])|0]++;
+  const pct=f=>{ let acc=0, t=N*f; for(let v=0;v<256;v++){ acc+=hist[v]; if(acc>=t) return v; } return 255; };
+  let blown=0; for(let v=250;v<256;v++) blown+=hist[v];
+  const p2=pct(0.02), p50=pct(0.50), p98=pct(0.98);
+  return {p2,p50,p98,span:p98-p2,blown:blown/N};
+}
+
+function measurePage(src){
+  const w=src.width,h=src.height;
+  const d=ctx2d(src).getImageData(0,0,w,h).data;
+  const N=w*h;
+  const st=histStats(d,N);
+
+  // Illumination spread: how far does paper-white drift across the page?
+  const {f,bw,bh}=illumField(d,w,h);
+  let fmin=1e9,fmax=-1e9;
+  for(let i=0;i<bw*bh;i++){
+    const L=0.299*f[i*3]+0.587*f[i*3+1]+0.114*f[i*3+2];
+    if(L<fmin)fmin=L; if(L>fmax)fmax=L;
+  }
+  st.gradient=fmax>1?clamp((fmax-fmin)/fmax,0,1):0;
+
+  // Focus proxy: Laplacian variance, stride-sampled.
+  const gray=new Float32Array(N);
+  for(let i=0,q=0;i<N;i++,q+=4) gray[i]=0.299*d[q]+0.587*d[q+1]+0.114*d[q+2];
+  let lsum=0,lsq=0,lc=0;
+  for(let y=1;y<h-1;y+=2) for(let x=1;x<w-1;x+=2){
+    const i=y*w+x;
+    const L=4*gray[i]-gray[i-1]-gray[i+1]-gray[i-w]-gray[i+w];
+    lsum+=L; lsq+=L*L; lc++;
+  }
+  const lvar=lc?(lsq/lc-(lsum/lc)**2):0;
+  /* Normalise edge energy by tonal span, otherwise a merely FADED page
+     (in focus, low contrast) is mistaken for a BLURRY one and gets
+     sharpened when what it actually needs is contrast. */
+  st.focus=Math.sqrt(Math.max(0,lvar))/Math.max(20,st.span);
+  return st;
+}
+
+function autoAdjust(src){
+  const raw=measurePage(src);
+  const a=Object.assign({},DEFAULT_ADJ,{mode:'gray'});
+
+  // A lighting gradient is the single biggest OCR killer, so lean in hard.
+  a.flat=Math.round(clamp(35+raw.gradient*110,35,100));
+
+  /* Re-measure on a flattened copy. flattenLight already drives paper toward
+     250, so contrast and brightness judged from the RAW histogram would
+     double-correct — that was over-darkening clean pages by 10. */
+  const w=src.width,h=src.height;
+  const id=ctx2d(src).getImageData(0,0,w,h);
+  flattenLight(id,a.flat);
+  const post=histStats(id.data,w*h);
+
+  a.con=Math.round(clamp((165-post.span)*0.42,0,38));
+  a.bri=Math.round(clamp((150-post.p50)*0.20,0,18));   // lift only, never darken
+  a.hig=Math.round(clamp(-6-post.blown*160,-26,0));    // recover glare, don't brighten into it
+  a.sha=Math.round(clamp((70-post.p2)*0.12,0,14));
+  // focus ~0.2 = soft, ~1.7 = crisp
+  a.shp=Math.round(clamp(52-(raw.focus-0.2)*25.3,14,52));
+
+  /* Colour, not grey. A fully normalised page looks washed out and unsharp
+     halos are ugly to read, so ease off both from where a pure
+     machine-reading profile would have put them. */
+  a.mode='color';
+  a.flat=Math.round(a.flat*0.80);
+  a.shp =Math.round(a.shp*0.75);
+  return {adj:a, m:raw, post};
+}
+
+const PRESETS={
+  /* 'scan' is the default every page starts on and what Reset returns to.
+     Colour, because colour turned out to serve both a reader and the parser. */
+  scan :{mode:'color',flat:70, bri:2,con:10,sha:6, hig:-6, shp:25},
+  color:{mode:'color',flat:0,  bri:0,con:0, sha:0, hig:0,  shp:0},
+  gray :{mode:'gray', flat:70, bri:2,con:8, sha:10,hig:-6, shp:12},
+  magic:{mode:'magic',flat:85, bri:0,con:0, sha:0, hig:0,  shp:0, block:21,cconst:6,despeckle:true},
+  bw   :{mode:'bw',   flat:100,bri:4,con:22,sha:0, hig:-8, shp:18,thresh:160}
+};
+
+function unlockEnhancements(p){
+  if(!p) return false;
+  const was=p.enhanceUnlocked;
+  p.enhanceUnlocked=true;
+  Tone.applyLock(); updateStepStates();
+  return !was;
+}
+
+const Tone={
+  showOriginal:false,
+  _timer:null,
+
+  locked(){
+    const p=activePage();
+    return !!p&&CONFIG.requireSliceBeforeEnhance&&!p.enhanceUnlocked;
+  },
+  applyLock(){
+    const locked=this.locked();
+    const fs=$('#tone-controls');
+    if(locked) fs.setAttribute('disabled','');
+    else fs.removeAttribute('disabled');
+    $('#tone-lock').style.display=locked?'block':'none';
+    return locked;
+  },
+
+  key(a){ return [a.mode,a.flat,a.bri,a.con,a.sha,a.hig,a.shp,a.thresh,a.block,a.cconst,a.despeckle].join('|'); },
+
+  ensurePreview(p){
+    const k=this.key(curAdj(p));
+    if(p._previewKey===k && p._preview) return p._preview;
+    p._preview=processCanvas(p._proxy,curAdj(p),p.flat.width);
+    p._previewKey=k;
+    return p._preview;
+  },
+
+  draw(){
+    const p=activePage(); if(!p||!p.flat) return;
+    const img=this.showOriginal?p._proxy:this.ensurePreview(p);
+    View.show(img,52);
+    const g=View.overlayCtx();
+    drawRulers(g);
+    const modeLabel=$('#sel-mode').selectedOptions[0].textContent.split('—')[0].trim();
+    badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · ${this.showOriginal?'<b>original</b>':modeLabel}`
+        + (this.locked()?' · <b style="color:#ffc247">locked until sliced</b>':'')
+        + ` · preview at ${p._proxy.width}px`);
+  },
+
+  queue(){
+    clearTimeout(this._timer);
+    this._timer=setTimeout(()=>{ if(S.step===STEP.ADJUST) this.draw(); },70);
+  },
+
+  syncUI(){
+    const p=activePage(); if(!p) return;
+    const a=curAdj(p);
+    $('#sel-mode').value=a.mode;
+    $('#s-flat').value=a.flat; $('#v-flat').textContent=a.flat;
+    $('#s-bri').value=a.bri; $('#s-con').value=a.con; $('#s-sha').value=a.sha;
+    $('#s-hig').value=a.hig; $('#s-shp').value=a.shp;
+    $('#s-thresh').value=a.thresh; $('#s-block').value=a.block;
+    $('#s-cconst').value=a.cconst; $('#c-despeckle').checked=a.despeckle;
+    $('#v-bri').textContent=a.bri; $('#v-con').textContent=a.con;
+    $('#v-sha').textContent=a.sha; $('#v-hig').textContent=a.hig;
+    $('#v-shp').textContent=a.shp;
+    $('#v-thresh').textContent=a.thresh;
+    $('#v-block').textContent=a.block+' px @ full res';
+    $('#v-cconst').textContent=a.cconst;
+    $('#mode-bw').style.display=a.mode==='bw'?'block':'none';
+    $('#mode-magic').style.display=a.mode==='magic'?'block':'none';
+    this.applyLock();
+  },
+
+  read(){
+    const p=activePage(); if(!p||this.locked()) return;
+    p.tuned=true;
+    const a=curAdj(p);
+    a.mode=$('#sel-mode').value;
+    a.flat=+$('#s-flat').value;
+    a.bri=+$('#s-bri').value; a.con=+$('#s-con').value;
+    a.sha=+$('#s-sha').value; a.hig=+$('#s-hig').value;
+    a.shp=+$('#s-shp').value;
+    a.thresh=+$('#s-thresh').value; a.block=+$('#s-block').value|1;
+    a.cconst=+$('#s-cconst').value; a.despeckle=$('#c-despeckle').checked;
+    this.syncUI(); this.queue();
+  },
+
+  preset(name){
+    const p=activePage(); if(!p||this.locked()) return;
+    p.tuned=true;
+    if(name==='reset') p.adj=Object.assign({},DEFAULT_ADJ,PRESETS.scan);
+    else Object.assign(curAdj(p),DEFAULT_ADJ,PRESETS[name]);
+    invalidate(p); this.syncUI(); this.draw();
+  },
+
+  /* Measures and sets EVERY flattened page, not just the one on screen —
+     each gets its own measurement, because two photos of the same menu can
+     be lit completely differently. */
+  async auto(){
+    if(this.locked()) return;
+    const pages=S.pages.filter(x=>x.flat);
+    if(!pages.length) return;
+    let last=null;
+    await busy('Measuring '+pages.length+' image'+(pages.length>1?'s':''),async()=>{
+      for(let i=0;i<pages.length;i++){
+        $('#busy-msg').textContent=`Measuring image ${i+1} of ${pages.length}`;
+        await raf();
+        const r=autoAdjust(pages[i]._proxy);
+        pages[i].adj=r.adj; pages[i].tuned=true;
+        invalidate(pages[i]);
+        pages[i].thumb=thumbURL(processCanvas(pages[i]._proxy,r.adj,pages[i].flat.width));
+        if(pages[i].id===S.activeId) last=r;
+      }
+    });
+    if(!last) last=autoAdjust((activePage()||pages[0])._proxy);
+    renderTray(); this.syncUI(); this.draw();
+    const a=activePage()?curAdj(activePage()):last.adj;
+    toast(`Auto-enhanced ${pages.length} image${pages.length>1?'s':''}, each measured on its own.`
+        + ` This one: flatten ${a.flat}, contrast ${a.con}, sharpen ${a.shp}.`);
+  },
+
+  pickOtsu(){
+    const p=activePage(); if(!p||this.locked()) return;
+    const pre=processCanvas(p._proxy,Object.assign({},curAdj(p),{mode:'color'}),p.flat.width);
+    curAdj(p).thresh=otsu(pre);
+    p.tuned=true;
+    invalidate(p); this.syncUI(); this.draw();
+    toast('Threshold set to '+curAdj(p).thresh+'.');
+  }
+};
+
+/* ════════════════════════════════════════════════════════════════
+   6 · STEP 4 — MULTI-REGION SLICING
+   ════════════════════════════════════════════════════════════════ */
+const Slice={
+  mode:'none', corner:-1, start:null, orig:null,
+
+  img(){
+    const p=activePage(); if(!p||!p.flat) return null;
+    return Tone.ensurePreview(p);
+  },
+
+  draw(){
+    const p=activePage(); if(!p||!p.flat) return;
+    View.show(this.img(),52);
+    const g=View.overlayCtx(), d=View.dpr;
+    drawRulers(g);
+    const k=View.src.width/p.flat.width;   // flat px -> preview px
+
+    p.regions.forEach((r,i)=>{
+      const a=View.toView(r.x*k,r.y*k), b=View.toView((r.x+r.w)*k,(r.y+r.h)*k);
+      const w=b.x-a.x, h=b.y-a.y;
+      const on=i===S.selRegion;
+      g.save();
+      g.fillStyle=on?'rgba(255,90,168,.16)':'rgba(255,90,168,.07)';
+      g.fillRect(a.x,a.y,w,h);
+      g.strokeStyle=CROPC; g.lineWidth=(on?2:1.3)*d;
+      g.strokeRect(a.x+.5,a.y+.5,w,h);
+      // index chip
+      const t=String(i+1).padStart(2,'0');
+      g.font=`600 ${10*d}px "IBM Plex Mono",monospace`;
+      const tw=g.measureText(t).width;
+      g.fillStyle=CROPC;
+      g.fillRect(a.x,a.y-16*d,tw+10*d,16*d);
+      g.fillStyle='#ffffff'; g.fillText(t,a.x+5*d,a.y-4.5*d);
+      // label + pixel size
+      g.font=`${10*d}px "IBM Plex Sans",sans-serif`;
+      g.fillStyle='rgba(233,236,242,.92)';
+      g.fillText(r.label,a.x+tw+16*d,a.y-4.5*d);
+      g.font=`${9.5*d}px "IBM Plex Mono",monospace`;
+      g.fillStyle='rgba(255,90,168,.9)';
+      g.fillText(`${Math.round(r.w)}×${Math.round(r.h)}`,a.x+4*d,a.y+h+12*d);
+      if(on){
+        g.fillStyle=CROPC;
+        [[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]].forEach(([hx,hy])=>{
+          g.fillRect(hx-4*d,hy-4*d,8*d,8*d);
+        });
+      }
+      g.restore();
+    });
+
+    if(this.mode==='new'&&this.start&&this.cur){
+      // start/cur carry BOTH preview coords (x,y) and flat coords (px,py).
+      // toView() maps preview space, so the rubber band must use x/y — feeding
+      // it px/py drew the band at flat scale (~2x), off the edge of the page.
+      const a=View.toView(this.start.x,this.start.y), b=View.toView(this.cur.x,this.cur.y);
+      g.save();
+      g.strokeStyle=CROPC; g.setLineDash([5*d,4*d]); g.lineWidth=1.4*d;
+      g.strokeRect(Math.min(a.x,b.x),Math.min(a.y,b.y),Math.abs(b.x-a.x),Math.abs(b.y-a.y));
+      g.restore();
+    }
+
+    badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · <b>${p.regions.length}</b> region${p.regions.length===1?'':'s'}`);
+    this.renderList();
+  },
+
+  renderList(){
+    const p=activePage(); if(!p) return;
+    const host=$('#region-list'); host.innerHTML='';
+    p.regions.forEach((r,i)=>{
+      const el=document.createElement('div');
+      el.className='item'+(i===S.selRegion?' sel':'');
+      el.innerHTML=`<span class="idx">${pad(i+1)}</span>
+        <span class="nm">${r.label}</span>
+        <span class="mt">${Math.round(r.w)}×${Math.round(r.h)}</span>
+        <button class="x" title="Delete">×</button>`;
+      el.addEventListener('click',ev=>{
+        if(ev.target.classList.contains('x')){
+          p.regions.splice(i,1);
+          if(S.selRegion>=p.regions.length) S.selRegion=p.regions.length-1;
+          this.draw(); renderTray(); return;
+        }
+        S.selRegion=i; this.draw();
+      });
+      host.appendChild(el);
+    });
+    $('#region-empty').style.display=p.regions.length?'none':'block';
+    const sel=p.regions[S.selRegion];
+    $('#v-selname').textContent=sel?pad(S.selRegion+1):'—';
+    const inp=$('#in-region-name');
+    if(document.activeElement!==inp) inp.value=sel?sel.label:'';
+    inp.disabled=!sel;
+  },
+
+  /* ── pointer interaction ─────────────────────────────────────── */
+  toFlat(pt){
+    const p=activePage();
+    const k=p.flat.width/View.src.width;   // preview px -> flat px
+    return {px:pt.x*k, py:pt.y*k};
+  },
+  hitTest(pt){
+    const p=activePage();
+    const k=View.src.width/p.flat.width;
+    const tol=8*View.dpr;
+    if(S.selRegion>=0&&p.regions[S.selRegion]){
+      const r=p.regions[S.selRegion];
+      const a=View.toView(r.x*k,r.y*k), b=View.toView((r.x+r.w)*k,(r.y+r.h)*k);
+      const cs=[[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]];
+      for(let i=0;i<4;i++) if(Math.abs(pt.cx-cs[i][0])<tol&&Math.abs(pt.cy-cs[i][1])<tol) return {type:'resize',i:S.selRegion,corner:i};
+    }
+    for(let i=p.regions.length-1;i>=0;i--){
+      const r=p.regions[i];
+      const a=View.toView(r.x*k,r.y*k), b=View.toView((r.x+r.w)*k,(r.y+r.h)*k);
+      if(pt.cx>=a.x&&pt.cx<=b.x&&pt.cy>=a.y&&pt.cy<=b.y) return {type:'move',i};
+    }
+    return {type:'new'};
+  },
+  onDown(ev){
+    const p=activePage(); if(!p||!p.flat) return;
+    const pt=View.ptFromEvent(ev);
+    const hit=this.hitTest(pt);
+    $('#overlay').setPointerCapture(ev.pointerId);
+    const f=this.toFlat(pt);
+    if(hit.type==='new'){
+      this.mode='new'; this.start={...pt,...f}; this.cur={...pt,...f};
+    }else{
+      S.selRegion=hit.i;
+      this.mode=hit.type; this.corner=hit.corner!=null?hit.corner:-1;
+      this.start={...pt,...f};
+      this.orig={...p.regions[hit.i]};
+    }
+    this.draw();
+  },
+  onMove(ev){
+    const p=activePage(); if(!p||!p.flat) return;
+    const pt=View.ptFromEvent(ev);
+    if(this.mode==='none'){
+      const h=this.hitTest(pt);
+      if(!S.spaceDown) $('#overlay').style.cursor=h.type==='resize'?'nwse-resize':(h.type==='move'?'move':'crosshair');
+      return;
+    }
+    const f=this.toFlat(pt);
+    const W=p.flat.width, H=p.flat.height;
+    if(this.mode==='new'){ this.cur={...pt,...f}; }
+    else if(this.mode==='move'){
+      const dx=f.px-this.start.px, dy=f.py-this.start.py;
+      const r=p.regions[S.selRegion];
+      r.x=clamp(this.orig.x+dx,0,W-this.orig.w);
+      r.y=clamp(this.orig.y+dy,0,H-this.orig.h);
+    }else if(this.mode==='resize'){
+      const o=this.orig, r=p.regions[S.selRegion];
+      let x0=o.x,y0=o.y,x1=o.x+o.w,y1=o.y+o.h;
+      const cx=clamp(f.px,0,W), cy=clamp(f.py,0,H);
+      if(this.corner===0){ x0=cx; y0=cy; }
+      if(this.corner===1){ x1=cx; y0=cy; }
+      if(this.corner===2){ x1=cx; y1=cy; }
+      if(this.corner===3){ x0=cx; y1=cy; }
+      r.x=Math.min(x0,x1); r.y=Math.min(y0,y1);
+      r.w=Math.max(8,Math.abs(x1-x0)); r.h=Math.max(8,Math.abs(y1-y0));
+    }
+    this.draw();
+  },
+  onUp(){
+    const p=activePage();
+    if(this.mode==='new'&&this.start&&this.cur){
+      const x=Math.min(this.start.px,this.cur.px), y=Math.min(this.start.py,this.cur.py);
+      const w=Math.abs(this.cur.px-this.start.px), h=Math.abs(this.cur.py-this.start.py);
+      if(w>10&&h>10){
+        p.regions.push({id:uid('r'),label:'Section '+(p.regions.length+1),
+          x:clamp(x,0,p.flat.width),y:clamp(y,0,p.flat.height),
+          w:Math.min(w,p.flat.width-x),h:Math.min(h,p.flat.height-y)});
+        S.selRegion=p.regions.length-1;
+        // hand-drawing boxes counts as slicing; locking someone out for
+        // preferring the manual route would just be a trap
+        if(unlockEnhancements(p)) toast('Enhancement controls unlocked.');
+      }
+    }
+    this.mode='none'; this.corner=-1; this.start=null; this.cur=null; this.orig=null;
+    this.draw(); renderTray();
+  },
+  nudge(dx,dy){
+    const p=activePage(); if(!p||S.selRegion<0) return;
+    const r=p.regions[S.selRegion];
+    r.x=clamp(r.x+dx,0,p.flat.width-r.w);
+    r.y=clamp(r.y+dy,0,p.flat.height-r.h);
+    this.draw();
+  },
+  deleteSelected(){
+    const p=activePage(); if(!p||S.selRegion<0) return;
+    p.regions.splice(S.selRegion,1);
+    S.selRegion=Math.min(S.selRegion,p.regions.length-1);
+    this.draw(); renderTray();
+  },
+  reorder(){
+    const p=activePage(); if(!p) return;
+    p.regions.sort((a,b)=> (Math.abs(a.y-b.y)>Math.max(a.h,b.h)*0.45) ? a.y-b.y : a.x-b.x);
+    S.selRegion=-1; this.draw();
+    toast('Regions reordered top to bottom, then left to right.');
+  },
+  clear(){
+    const p=activePage(); if(!p) return;
+    p.regions=[]; S.selRegion=-1; this.draw(); renderTray();
+  },
+
+  /* ── Section finder ───────────────────────────────────────────────
+     Whitespace projection alone cannot find SEMANTIC sections: the gap
+     under "FRIED RICE" is usually the same size as the gap between the
+     items beneath it, so gap-cutting fragments a menu at every line.
+
+     These menus carry the structure in TYPE SIZE instead — a section
+     header is set larger and bolder than its items. So: find text lines,
+     take the median line height as body text, and cut above every line
+     that is meaningfully taller. That yields "header + its items" as one
+     region, which is what the OCR pass wants.
+
+     If the type-size signal is not there, fall back to the largest gaps.
+     If neither produces a plausible result, REFUSE and say so — fixing a
+     bad auto-slice costs more than drawing the boxes by hand. */
+  async autoSlice(){
+    const p=activePage(); if(!p||!p.flat) return;
+    const padPx=+$('#s-pad').value, twoCol=$('#c-two-col').checked;
+
+    const res=await busy('Reading the page structure',async()=>{
+      await raf();
+      const base=p._proxy;
+      const k=p.flat.width/base.width;
+      const W=base.width, H=base.height;
+      const ink=localInkMask(base,sliceBlockFor(base),8);
+
+      let cols=[[0,W-1]];
+      if(twoCol){
+        const colInk=new Uint32Array(W);
+        for(let y=0;y<H;y++){ const o=y*W; for(let x=0;x<W;x++) colInk[x]+=ink[o+x]; }
+        const lim=Math.max(1,H*0.006);
+        let bestRun=null,run=null;
+        for(let x=0;x<W;x++){
+          if(colInk[x]<=lim){ run=run||{a:x}; run.b=x; }
+          else if(run){ if(x/W>0.28&&run.a/W<0.72&&(!bestRun||(run.b-run.a)>(bestRun.b-bestRun.a))) bestRun=run; run=null; }
+        }
+        if(bestRun&&(bestRun.b-bestRun.a)>W*0.012){
+          const mid=Math.round((bestRun.a+bestRun.b)/2);
+          cols=[[0,mid],[mid,W-1]];
+        }else return {fail:'no-gutter'};
+      }
+
+      const groups=[]; let usedHeaders=false, headerCount=0, lineCount=0;
+      for(const [cx0,cx1] of cols){
+        const cw=cx1-cx0+1;
+        const rowInk=new Uint32Array(H);
+        for(let y=0;y<H;y++){ const o=y*W; let sm=0; for(let x=cx0;x<=cx1;x++) sm+=ink[o+x]; rowInk[y]=sm; }
+        const lim=Math.max(1,cw*0.004);
+
+        let raw=[],cur=null;
+        for(let y=0;y<H;y++){
+          if(rowInk[y]>lim){ cur=cur||{a:y,mass:0}; cur.b=y; cur.mass+=rowInk[y]; }
+          else if(cur){ raw.push(cur); cur=null; }
+        }
+        if(cur) raw.push(cur);
+        if(!raw.length) continue;
+
+        // stitch descenders and diacritics back onto their own line
+        const h0=median(raw.map(b=>b.b-b.a+1));
+        const lines=[];
+        for(const b of raw){
+          const last=lines[lines.length-1];
+          if(last&&(b.a-last.b)<Math.max(1,h0*0.35)){ last.b=b.b; last.mass+=b.mass; }
+          else lines.push(Object.assign({},b));
+        }
+        lineCount+=lines.length;
+        if(lines.length<2){
+          groups.push({x0:cx0,x1:cx1,y0:lines[0].a,y1:lines[0].b});
+          continue;
+        }
+
+        const hs=lines.map(l=>l.b-l.a+1), medH=median(hs);
+        const dens=lines.map(l=>l.mass/Math.max(1,(l.b-l.a+1)*cw)), medD=median(dens);
+
+        /* Taller than body text = header. Upper bound matters: something
+           2.6x the median is a merged block, not a heading. Density is the
+           tiebreaker for headers that are bold but barely larger. */
+        const isHeader=lines.map((l,i)=>{
+          const r=hs[i]/medH, d=dens[i]/Math.max(1e-6,medD);
+          return (r>=1.30&&r<=2.6)||(r>=1.15&&r<=2.6&&d>=1.25);
+        });
+        const nH=isHeader.filter(Boolean).length;
+
+        let cuts=[0];
+        if(nH>=2){
+          usedHeaders=true; headerCount+=nH;
+          cuts=[];
+          lines.forEach((l,i)=>{ if(isHeader[i]||!cuts.length) cuts.push(i); });
+        }else{
+          const gaps=[];
+          for(let i=1;i<lines.length;i++) gaps.push(lines[i].a-lines[i-1].b);
+          const medG=median(gaps)||1;
+          for(let i=1;i<lines.length;i++)
+            if((lines[i].a-lines[i-1].b)>=Math.max(medG*1.9,h0*0.9)) cuts.push(i);
+        }
+        for(let ci=0;ci<cuts.length;ci++){
+          const s0=cuts[ci], s1=(ci+1<cuts.length?cuts[ci+1]:lines.length)-1;
+          groups.push({x0:cx0,x1:cx1,y0:lines[s0].a,y1:lines[s1].b});
+        }
+      }
+      return {groups,usedHeaders,headerCount,lineCount,k};
+    });
+    if(!res) return;
+    if(res.fail==='no-gutter'){
+      toast('No centre gutter found — untick "two columns" or draw the boxes by hand.','warn'); return;
+    }
+
+    const {groups,usedHeaders,headerCount,lineCount,k}=res;
+    /* Confidence gate. You told me a bad auto-slice is worse than none, so
+       this refuses instead of dumping fragments on the page. */
+    if(groups.length<2){
+      toast('No clear section structure here — one drag gives you the whole page.','warn'); return;
+    }
+    if(groups.length>30){
+      toast(`Found ${groups.length} fragments across ${lineCount} text lines — too many to be real sections. Draw the boxes by hand.`,'warn'); return;
+    }
+
+    p.regions=groups.map((r,i)=>{
+      const x=clamp(r.x0*k-padPx,0,p.flat.width);
+      const y=clamp(r.y0*k-padPx,0,p.flat.height);
+      const w=clamp((r.x1-r.x0+1)*k+padPx*2,8,p.flat.width-x);
+      const h=clamp((r.y1-r.y0+1)*k+padPx*2,8,p.flat.height-y);
+      return {id:uid('r'),label:'Section '+(i+1),x,y,w,h};
+    });
+    S.selRegion=-1;
+    this.reorder();
+    this.draw(); renderTray();
+    const c=p.regions.length, freshly=unlockEnhancements(p);
+    toast(`${c} section${c===1?'':'s'} found `
+        + (usedHeaders?`from ${headerCount} headings`:`from paragraph gaps (no size difference in the headings)`)
+        + `.`+(freshly?' Enhancement controls unlocked.':''));
+  }
+};
+
+/* ════════════════════════════════════════════════════════════════
+   7 · STEP 5 — EXPORT
+   ════════════════════════════════════════════════════════════════ */
+/* ── Dependency-free export fallbacks ─────────────────────────────
+   A store-only ZIP writer and a minimal one-JPEG-per-page PDF. PNG and
+   JPEG are already compressed, so STORE costs only the deflate we skip —
+   and B1 already wrote its images with {compression:'STORE'} anyway.
+
+   These exist because the worst failure shape is all the work and none of
+   the output: without them a blocked CDN leaves every upstream step
+   working and both export buttons dead. */
+const blobBytes=async b=>new Uint8Array(await b.arrayBuffer());
+
+const CRCT=(()=>{ const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++) c=c&1?0xEDB88320^(c>>>1):c>>>1; t[i]=c>>>0; }
+  return t; })();
+const crc32=b=>{ let c=0xFFFFFFFF; for(let i=0;i<b.length;i++) c=CRCT[(c^b[i])&255]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0; };
+
+function dosStamp(d){
+  return { t:((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,
+           d:(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF };
+}
+
+function zipStore(files){
+  const total=files.reduce((a,f)=>a+f.bytes.length+f.name.length+76,0);
+  if(total>0xFFFFFF00) throw new Error('Archive would exceed 4 GB and this writer has no ZIP64. '
+    +'Lower "Longest edge" or export in two passes.');
+  const enc=new TextEncoder(), st=dosStamp(new Date());
+  const parts=[], central=[]; let off=0;
+  const u32=v=>{const a=new Uint8Array(4);new DataView(a.buffer).setUint32(0,v>>>0,true);return a;};
+  const u16=v=>{const a=new Uint8Array(2);new DataView(a.buffer).setUint16(0,v&0xFFFF,true);return a;};
+  for(const f of files){
+    const nm=enc.encode(f.name), crc=crc32(f.bytes), len=f.bytes.length;
+    const lh=[enc.encode('PK\x03\x04'),u16(20),u16(0),u16(0),u16(st.t),u16(st.d),
+              u32(crc),u32(len),u32(len),u16(nm.length),u16(0),nm];
+    lh.forEach(x=>parts.push(x)); parts.push(f.bytes);
+    const lhLen=lh.reduce((a,x)=>a+x.length,0);
+    central.push([enc.encode('PK\x01\x02'),u16(20),u16(20),u16(0),u16(0),u16(st.t),u16(st.d),
+                  u32(crc),u32(len),u32(len),u16(nm.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off),nm]);
+    off+=lhLen+len;
+  }
+  const cd=[]; central.forEach(c=>c.forEach(x=>cd.push(x)));
+  const cdSize=cd.reduce((a,x)=>a+x.length,0);
+  cd.push(enc.encode('PK\x05\x06'),u16(0),u16(0),u16(files.length),u16(files.length),
+          u32(cdSize),u32(off),u16(0));
+  return new Blob([...parts,...cd],{type:'application/zip'});
+}
+
+/* One baseline JPEG per page, fitted to the page box with an 18pt margin.
+   /DCTDecode only, so this path is always JPEG — it cannot carry the
+   lossless PNG option, and the UI says so when jsPDF is missing. */
+function buildPDF(pages){
+  const enc=new TextEncoder(), chunks=[], offs=[]; let pos=0;
+  const push=x=>{ const b=typeof x==='string'?enc.encode(x):x; chunks.push(b); pos+=b.length; };
+  const obj=(id,body,stream)=>{
+    offs[id]=pos; push(id+' 0 obj\n'+body+'\n');
+    if(stream!==undefined){ push('stream\n'); push(stream); push('\nendstream\n'); }
+    push('endobj\n');
+  };
+  push('%PDF-1.4\n');
+  push(new Uint8Array([0x25,0xE2,0xE3,0xCF,0xD3,0x0A]));  // binary marker as raw bytes
+  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2,'<< /Type /Pages /Kids ['+pages.map((_,i)=>(3+i*3)+' 0 R').join(' ')
+       +'] /Count '+pages.length+' >>');
+  const M=18;
+  pages.forEach((pg,i)=>{
+    const id=3+i*3, im=id+1, ct=id+2;
+    const land=pg.w>pg.h, PW=land?792:612, PH=land?612:792;
+    const sc=Math.min((PW-2*M)/pg.w,(PH-2*M)/pg.h);
+    const w=(pg.w*sc).toFixed(2), h=(pg.h*sc).toFixed(2);
+    const x=((PW-pg.w*sc)/2).toFixed(2), y=((PH-pg.h*sc)/2).toFixed(2);
+    obj(id,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+PW+' '+PH+'] '
+      +'/Resources << /XObject << /Im0 '+im+' 0 R >> >> /Contents '+ct+' 0 R >>');
+    obj(im,'<< /Type /XObject /Subtype /Image /Width '+pg.w+' /Height '+pg.h
+      +' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '
+      +pg.bytes.length+' >>',pg.bytes);
+    const cs='q '+w+' 0 0 '+h+' '+x+' '+y+' cm /Im0 Do Q';
+    obj(ct,'<< /Length '+cs.length+' >>',cs);
+  });
+  const xref=pos, total=2+pages.length*3;
+  let t='xref\n0 '+(total+1)+'\n0000000000 65535 f \n';
+  for(let i=1;i<=total;i++) t+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+  t+='trailer\n<< /Size '+(total+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n';
+  push(t);
+  return new Blob(chunks,{type:'application/pdf'});
+}
+
+/* Folder names are the highest-signal thing a parser sees when it opens the
+   archive, so they say what the folder is FOR rather than what it contains.
+   Rename here and the README, the manifest and the files all follow. */
+const ZIP_FOLDERS={ ocr:'ocr-for-scanning' };
+
+const PDF_FORMATS={ a4:[595.28,841.89], letter:[612,792] };
+
+const Exporter={
+  draw(){
+    const p=activePage();
+    if(p&&p.flat){
+      View.show(Tone.ensurePreview(p),52);
+      const g=View.overlayCtx(), d=View.dpr;
+      const k=View.src.width/p.flat.width;
+      p.regions.forEach((r,i)=>{
+        const a=View.toView(r.x*k,r.y*k), b=View.toView((r.x+r.w)*k,(r.y+r.h)*k);
+        g.save();
+        g.strokeStyle='rgba(255,90,168,.85)'; g.lineWidth=1.2*d;
+        g.setLineDash([4*d,3*d]);
+        g.strokeRect(a.x+.5,a.y+.5,b.x-a.x,b.y-a.y);
+        g.setLineDash([]);
+        g.font=`600 ${9.5*d}px "IBM Plex Mono",monospace`;
+        g.fillStyle='rgba(255,90,168,.95)';
+        g.fillText(pad(i+1),a.x+4*d,a.y+12*d);
+        g.restore();
+      });
+      badge(`<b>${p.name}</b> · ready to export`);
+    }else View.show(null);
+    this.summary();
+  },
+
+  renderList(){
+    const host=$('#export-list'); host.innerHTML='';
+    const pages=exportPages();
+    pages.forEach((p,i)=>{
+      const el=document.createElement('div');
+      el.className='item';
+      el.innerHTML=`<span class="idx">${pad(i+1)}</span>
+        <span class="sw" style="background-image:url(${p.thumb||''})"></span>
+        <span class="nm">${p.name}${p.joinedFrom?' <span style="color:#00d3c0">· joined</span>':''}</span>
+        <span class="mt">${p.flat.width}×${p.flat.height}</span>
+        <button class="x" title="Leave out">×</button>`;
+      el.querySelector('.x').addEventListener('click',()=>{
+        p.include=false; renderTray(); Exporter.draw();
+      });
+      host.appendChild(el);
+    });
+    $('#export-none').style.display=pages.length?'none':'block';
+  },
+
+  /* Rough but honest: measure ONE page at the current settings and scale up.
+     Menu pages are similar enough that this lands close, and it beats
+     exporting 40 MB to find out. */
+  async estimate(){
+    if(busyDepth>0) return;
+    const pages=exportPages(), el=$('#size-readout');
+    if(!pages.length){ el.textContent='—'; this._estKey=''; return; }
+    const lossless=$('#c-lossless').checked;
+    const maxDim=+$('#s-maxdim').value, maxDimImg=+$('#s-maxdim-img').value;
+    const q=lossless?undefined:+$('#s-q').value/100;
+    const key=[pages.length,ocrPages().length,lossless,maxDim,maxDimImg,q].join('|');
+    if(this._estKey===key) return;
+    this._estKey=key;
+    el.textContent='measuring…';
+    try{
+      /* Encode the PROXY, not the full page — rendering 12 MP through the
+         tone pipeline just to size it would stall this pane on every open.
+         JPEG size tracks pixel count closely enough for an estimate. */
+      const p0=pages[0];
+      const proxy=processCanvas(p0._proxy,p0.adj,p0.flat.width);
+      const b=await canvasBlob(proxy,lossless?'image/png':'image/jpeg',q);
+      const proxyPx=proxy.width*proxy.height;
+      proxy.width=proxy.height=0;
+      const long=Math.max(p0.flat.width,p0.flat.height);
+      const pxAt=cap=>{const k=Math.min(1,cap/long);return (p0.flat.width*k)*(p0.flat.height*k);};
+      const perImg=b.size*(pxAt(maxDimImg)/proxyPx);
+      const perPdf=b.size*(pxAt(maxDim)/proxyPx);
+      const nC=pages.length, nO=ocrPages().length;
+      const mb=v=>v>=1048576?(v/1048576).toFixed(1)+' MB':Math.round(v/1024)+' KB';
+      el.innerHTML=`all images <b>${mb(perImg*nC)}</b> — ${nC} page${nC===1?'':'s'}`
+        +`<br>PDF <b>${mb(perPdf*nC*0.95)}</b> — ${nC} page${nC===1?'':'s'}`
+        +(hasJoins()?`<br>OCR set <b>${mb(perImg*nO)}</b> — ${nO} sheet${nO===1?'':'s'}`:'')
+        +`<br><span style="color:#96938c">${Math.round(perImg/1024)} KB per image at ${maxDimImg}px</span>`
+        +(lossless?'<br><span style="color:#a1660b">lossless PNG runs about 10x JPEG</span>':'');
+    }catch(e){ el.textContent='could not estimate'; }
+  },
+
+  summary(){
+    this.renderList();
+    this.estimate();
+    const pages=exportPages();
+    const crops=pages.reduce((a,p)=>a+p.regions.length,0);
+    const noRegions=pages.filter(p=>!p.regions.length).length;
+    const px=pages.reduce((a,p)=>a+p.flat.width*p.flat.height,0);
+    $('#summary').innerHTML=
+      `pages flattened <b>${pages.length}</b> of ${S.pages.length}<br>`+
+      `crop regions <b>${crops}</b><br>`+
+      `total pixels <b>${(px/1e6).toFixed(1)} MP</b>`+
+      (S.pages.some(x=>x.flat&&!x.include)?`<br><span style="color:#8d95a5">`
+        +`${S.pages.filter(x=>x.flat&&!x.include).length} page(s) held back</span>`:'')+
+      (pages.filter(pg=>!pg.cornersVerified).length?`<br><span style="color:#ffc247">`
+        +`${pages.filter(pg=>!pg.cornersVerified).length} flattened from auto-detected corners — not checked</span>`:'')+
+      (S.pages.length-pages.length?`<br><span style="color:#ff5f5f">${S.pages.length-pages.length} page(s) not yet flattened</span>`:'');
+    const joined=hasJoins();
+    $('#btn-pdf').disabled=!pages.length;
+    $('#btn-zip-all').disabled=!pages.length;
+    $('#btn-zip-ocr').disabled=!joined||!ocrPages().length;
+    /* Hidden rather than greyed: a third button that can never activate is
+       just noise on the common no-join job. */
+    $('#ocr-choice').style.display=joined?'block':'none';
+    $('#ocr-absent').style.display=joined?'none':'block';
+    $('#ocr-hint').style.display=joined?'none':'block';
+    $('#all-why').innerHTML=joined
+      ? '<b>Images only</b>, flattened / straightened / cropped and <b>joined</b>.'
+      : '<b>Images only</b>, flattened / straightened / cropped. Nothing was joined, so this is also the set for the parser.';
+    $('#btn-pdf').textContent=LIB.jspdf?'Export PDF':'Export PDF (basic)';
+    $('#btn-zip-all').textContent=LIB.jszip?'Export all images (ZIP)':'Export all images (basic ZIP)';
+    $('#btn-zip-ocr').textContent=LIB.jszip?'Export OCR set (ZIP)':'Export OCR set (basic ZIP)';
+    $('#c-lossless').disabled=!LIB.jszip&&false;
+    const note=$('#fallback-note');
+    if(note) note.style.display=(LIB.jspdf&&LIB.jszip)?'none':'block';
+  },
+
+  render(p,maxDim){
+    const full=processCanvas(p.flat,p.adj,p.flat.width);
+    return maxDim?scaleCanvas(full,maxDim):full;
+  },
+
+  /* Produces the PDF as a Blob and does NOT download it, so the same code
+     can either be saved on its own or dropped inside the ZIP. Chrome blocks
+     the second automatic download from a page, which is what made "export
+     everything" fail — one file avoids the problem instead of fighting it. */
+  async renderPdfBlob(pages,q,maxDim,fmt,label){
+    label=label||'PDF page';
+    if(!LIB.jspdf){
+      const out=[];
+      for(let i=0;i<pages.length;i++){
+        $('#busy-msg').textContent=`${label} ${i+1} of ${pages.length}`;
+        await raf();
+        const img=this.render(pages[i],maxDim);
+        out.push({bytes:await blobBytes(await canvasBlob(img,'image/jpeg',q)),w:img.width,h:img.height});
+        img.width=img.height=0;
+      }
+      return buildPDF(out);
+    }
+    const {jsPDF}=window.jspdf;
+    let doc=null;
+    for(let i=0;i<pages.length;i++){
+      $('#busy-msg').textContent=`${label} ${i+1} of ${pages.length}`;
+      await raf();
+      const img=this.render(pages[i],maxDim);
+      let pw,ph;
+      if(fmt==='fit'){
+        const long=842, k=long/Math.max(img.width,img.height);
+        pw=img.width*k; ph=img.height*k;
+      }else{ [pw,ph]=PDF_FORMATS[fmt]; }
+      const land=pw>ph;
+      const format=[Math.min(pw,ph),Math.max(pw,ph)];
+      if(!doc) doc=new jsPDF({unit:'pt',format,orientation:land?'landscape':'portrait',compress:true});
+      else doc.addPage(format,land?'landscape':'portrait');
+      const PW=doc.internal.pageSize.getWidth(), PH=doc.internal.pageSize.getHeight();
+      const sc=Math.min(PW/img.width,PH/img.height);
+      const dw=img.width*sc, dh=img.height*sc;
+      doc.addImage(img.toDataURL('image/jpeg',q),'JPEG',(PW-dw)/2,(PH-dh)/2,dw,dh,undefined,'FAST');
+      img.width=img.height=0;                 // free the bitmap before the next page
+    }
+    doc.setProperties({title:APP.name+' — '+pages.length+' page(s)',creator:APP.name+' v'+APP.version});
+    return doc.output('blob');
+  },
+
+  async pdf(){
+    const pages=exportPages();
+    if(!pages.length) return;
+    const q=+$('#s-q').value/100, maxDim=+$('#s-maxdim').value, fmt=$('#sel-pdf-fmt').value;
+    let blob=null;
+    await busy('Building PDF',async()=>{ blob=await this.renderPdfBlob(pages,q,maxDim,fmt); });
+    if(!blob) return;
+    download(blob,`${bundleStem()}_menu_${stamp()}.pdf`);
+    toast(`PDF exported — ${pages.length} page${pages.length>1?'s':''}.`);
+  },
+
+  /* Two archives with genuinely different jobs, so they are shaped
+     differently rather than being one function with a filter:
+
+       'images'  the finished pages, flat at the root, nothing else. A
+                 person opens this, so a README and a manifest would just
+                 be clutter to delete.
+       'ocr'     the unjoined sheets, foldered, with a README and a
+                 manifest — a parser benefits from being told what it is
+                 looking at, a person does not.                        */
+  async zip(opts){
+    opts=opts||{};
+    const mode=opts.mode==='ocr'?'ocr':'images';
+    const pages=mode==='ocr'?ocrPages():exportPages();
+    if(!pages.length){ toast('Nothing selected to export.','warn'); return; }
+
+    const lossless=$('#c-lossless').checked;
+    const maxDimImg=+$('#s-maxdim-img').value;
+    const type=lossless?'image/png':'image/jpeg';
+    const ext=lossless?'png':'jpg';
+    const q=lossless?undefined:+$('#s-q').value/100;
+    const up=+$('#s-up').value;
+    const inclFull=$('#c-include-full').checked;
+
+    await busy(mode==='ocr'?'Packing the OCR set':'Packing images',async()=>{
+      const plain=!LIB.jszip;
+      const entries=[];                        // fallback accumulator
+      const zip=plain?null:new JSZip();
+      const put=async(name,canvas)=>{
+        const blob=await canvasBlob(canvas,type,q);
+        if(plain) entries.push({name,bytes:await blobBytes(blob)});
+        else zip.file(name,blob,{compression:'STORE'});
+        return blob.size;
+      };
+      let bytes=0;
+      const dir=mode==='ocr'?`${ZIP_FOLDERS.ocr}/`:'';
+      const manifest={
+        tool:APP.name,
+        tool_version:APP.version,
+        generated_at:new Date().toISOString(),
+        purpose:'Menu pages to run OCR on. Every image in this archive is one '
+               +'straightened menu sheet. Pages are NOT joined — each original '
+               +'sheet is its own file, numbered in reading order.',
+        image_format:ext,
+        quality:lossless?'lossless':(+$('#s-q').value/100),
+        longest_edge:maxDimImg,
+        pages:[]
+      };
+
+      for(let i=0;i<pages.length;i++){
+        const p=pages[i];
+        $('#busy-msg').textContent=`Image ${i+1} of ${pages.length}`;
+        await raf();
+        const full=this.render(p,maxDimImg);
+        const fn=`${dir}${pad(i+1)}_${safeName(p.name)}.${ext}`;
+        if(mode==='images'||inclFull||!p.regions.length) bytes+=await put(fn,full);
+        const entry={order:i+1,name:p.name,file:fn,
+          width:full.width,height:full.height,joined:!!p.joinedFrom,regions:[]};
+        if(mode==='ocr'){
+          for(let r=0;r<p.regions.length;r++){
+            const rg=p.regions[r];
+            const cw=Math.max(1,Math.round(rg.w*up)), chh=Math.max(1,Math.round(rg.h*up));
+            const c=mkCanvas(cw,chh), g=ctx2d(c,{});
+            g.imageSmoothingQuality='high';
+            g.drawImage(full,Math.round(rg.x),Math.round(rg.y),Math.round(rg.w),Math.round(rg.h),0,0,cw,chh);
+            const rfn=`${dir}${pad(i+1)}_r${pad(r+1)}_${safeName(rg.label)}.${ext}`;
+            bytes+=await put(rfn,c);
+            entry.regions.push({order:r+1,label:rg.label,file:rfn,
+              source_rect:{x:Math.round(rg.x),y:Math.round(rg.y),w:Math.round(rg.w),h:Math.round(rg.h)},
+              exported:{w:cw,h:chh}});
+          }
+        }
+        manifest.pages.push(entry);
+        full.width=full.height=0;              // free the bitmap before the next page
+      }
+
+      if(mode==='ocr'){
+        manifest.total_image_bytes=bytes;
+        const readme=
+`${APP.name} v${APP.version} — OCR set
+${'='.repeat(APP.name.length+16)}
+
+Created  ${new Date().toISOString()}
+Job      ${bundleStem()}
+
+WHAT THIS IS
+
+  ${ZIP_FOLDERS.ocr}/
+      ${pages.length} image${pages.length===1?'':'s'}, one per straightened menu sheet.
+      >>> PARSE EVERY IMAGE IN THIS FOLDER. <<<
+      Pages are NOT joined - each original sheet is its own file,
+      numbered in reading order. Filenames carry that order.
+
+  manifest.json
+      The same list in machine-readable form, with the pixel size of
+      every image.
+
+There is no PDF and no colour set in this archive. Those are exported
+separately and are meant for people, not for parsing.
+`;
+        if(plain) entries.push({name:'README.txt',bytes:new TextEncoder().encode(readme)});
+        else zip.file('README.txt',readme);
+        const mf=JSON.stringify(manifest,null,2);
+        if(plain) entries.push({name:'manifest.json',bytes:new TextEncoder().encode(mf)});
+        else zip.file('manifest.json',mf);
+      }
+
+      $('#busy-msg').textContent='Writing archive';
+      await raf();
+      let blob;
+      if(plain){
+        try{ blob=zipStore(entries); }
+        catch(e){ toast(e.message,'err'); return; }
+      }else{
+        blob=await zip.generateAsync({type:'blob'});
+      }
+      download(blob,`${bundleStem()}_${mode==='ocr'?'ocr':'images'}_${stamp()}.zip`);
+    });
+    toast(`${mode==='ocr'?'OCR set':'Images'} exported — ${pages.length} image${pages.length===1?'':'s'}.`);
+  }
+};
+/* manifest.json is better provenance than any filename, but a
+   restaurant-derived stem is what survives being dropped into a ticket. */
+/* The single definition of what goes out, in the order it goes out.
+   Array order IS the PDF order, which is what the strip reorders. */
+function exportPages(){ return S.pages.filter(p=>p.flat&&p.include); }
+
+/* The OCR folder deliberately holds the INDIVIDUAL straightened photos, not
+   the joins — a join exists so a person can read one sheet on a ticket, while
+   OCR does better on the original single pages. Pages consumed by a join are
+   still included here; only ones the operator explicitly held back are cut. */
+function ocrPages(){
+  return S.pages.filter(p=>p.flat&&!p.joinedFrom&&(p.include||p.consumed));
+}
+
+/* With nothing joined, ocrPages() and exportPages() resolve to the same set —
+   the OCR archive would hold identical images to the all-images one and differ
+   only in packaging. So the OCR button only exists once a join has actually
+   made the two sets different. */
+function hasJoins(){ return S.pages.some(p=>p.joinedFrom); }
+
+function bundleStem(){
+  const first=exportPages()[0]||S.pages.find(pg=>pg.flat)||S.pages[0];
+  const raw=(first?first.name:'menu').replace(/[-_ ]*(front|back|cover|p?0*1|page ?1)$/i,'');
+  return safeName(raw)||'menu';
+}
+function stamp(){
+  const d=new Date();
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   8 · TRAY, NAVIGATION, WIRING
+   ════════════════════════════════════════════════════════════════ */
+/* ── Page strip ───────────────────────────────────────────────────
+   Grouped by whether a page is going out, because that is the grouping
+   that actually decides the PDF. Joined pages and loose photos are told
+   apart by a badge rather than by being in different lists — separating
+   them by origin would fight the ordering, since a job can perfectly well
+   export "the joined A+B, then C".
+
+   Array order is the export order. Dragging a tile reorders it. */
+function renderTray(){
+  const host=$('#tray-scroll'); host.innerHTML='';
+  if(!S.pages.length){
+    host.innerHTML='<span class="tray-empty">No photos yet</span>';
+    $('#tray-meta').textContent='';
+    updateStepStates(); return;
+  }
+
+  const going=S.pages.filter(p=>p.include);
+  const aside=S.pages.filter(p=>!p.include);
+
+  const tile=(p,seq)=>{
+    const i=S.pages.indexOf(p);
+    const el=document.createElement('div');
+    el.className='pg'+(p.id===S.activeId?' on':'')+(p.include?'':' used')+(p.joinedFrom?' isjoin':'');
+    el.tabIndex=0; el.setAttribute('role','button');
+    el.dataset.pid=p.id;
+    if(p.include) el.draggable=true;
+    const why=p.consumed?'folded into a join':'held back';
+    el.innerHTML=`<div class="im" style="background-image:url(${p.thumb||''})"></div>
+      <div class="cap"><span>${seq?pad(seq):'—'}</span><span>${p.flat?p.flat.width+'w':'raw'}</span></div>
+      <button class="pick" title="${p.include?'Leave out of the export':'Add to the export'}">${p.include?'✓':''}</button>
+      ${p.flat?'<span class="ok" title="Flattened">✓</span>':'<span class="todo" title="Not flattened yet">•</span>'}
+      ${p.joinedFrom?'<span class="jtag">joined</span>':''}
+      ${p.regions.length?`<span class="rgn">${p.regions.length}</span>`:''}
+      ${p.flat&&!p.cornersVerified?'<span class="unver" title="Corners auto-detected, never checked">!</span>':''}
+      ${p.include?'':`<span class="joined" title="${why}">↦</span>`}
+      <button class="del" title="Remove page">×</button>`;
+
+    el.addEventListener('keydown',ev=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); el.click(); } });
+    el.addEventListener('click',ev=>{
+      if(ev.target.classList.contains('del')){
+        ev.stopPropagation();
+        // a join sets its sources aside rather than deleting them, so undoing
+        // the join has to hand them back
+        if(p.joinedFrom) p.joinedFrom.forEach(id=>{
+          const src=S.pages.find(x=>x.id===id);
+          if(src){ src.consumed=false; src.include=true; }
+        });
+        S.pages.splice(i,1);
+        if(S.activeId===p.id) S.activeId=S.pages.length?S.pages[Math.max(0,i-1)].id:null;
+        if(Join.aId===p.id||Join.bId===p.id){ Join.A=Join.B=null; }
+        renderTray(); drawStep(); return;
+      }
+      if(ev.target.classList.contains('pick')){
+        ev.stopPropagation();
+        p.include=!p.include;
+        renderTray();
+        if(S.step===STEP.EXPORT) Exporter.draw();
+        return;
+      }
+      S.activeId=p.id; S.selCorner=-1; S.selRegion=-1; Crop.hover=-1; View.resetView();
+      Crop.mode=p.flat?'result':'edit';
+      renderTray();
+      if(!p.flat&&S.step!==STEP.SCAN&&S.step!==STEP.PAGES) goStep(STEP.SCAN); else drawStep();
+    });
+
+    /* Drag to reorder. Only export-bound tiles are draggable, because the
+       order only means anything for pages that are going out. */
+    if(p.include){
+      el.addEventListener('dragstart',ev=>{
+        S.dragPid=p.id; el.classList.add('dragging');
+        ev.dataTransfer.effectAllowed='move';
+        try{ ev.dataTransfer.setData('text/plain',p.id); }catch(e){}
+      });
+      el.addEventListener('dragend',()=>{ S.dragPid=null; renderTray(); });
+      el.addEventListener('dragover',ev=>{
+        if(!S.dragPid||S.dragPid===p.id) return;
+        ev.preventDefault(); ev.dataTransfer.dropEffect='move';
+        const r=el.getBoundingClientRect();
+        el.classList.toggle('drop-before',ev.clientX<r.left+r.width/2);
+        el.classList.toggle('drop-after', ev.clientX>=r.left+r.width/2);
+      });
+      el.addEventListener('dragleave',()=>el.classList.remove('drop-before','drop-after'));
+      el.addEventListener('drop',ev=>{
+        ev.preventDefault();
+        el.classList.remove('drop-before','drop-after');
+        const r=el.getBoundingClientRect();
+        movePage(S.dragPid,p.id,ev.clientX>=r.left+r.width/2);
+        S.dragPid=null;
+        renderTray(); if(S.step===STEP.PAGES) Pages.draw();
+        if(S.step===STEP.EXPORT) Exporter.draw();
+        toast('Page order updated — this is the PDF order.');
+      });
+    }
+    return el;
+  };
+
+  const group=(label,list,hint)=>{
+    if(!list.length) return;
+    const g=document.createElement('div');
+    g.className='tgroup';
+    g.innerHTML=`<div class="tglabel">${label}<span>${list.length}</span></div>`;
+    const row=document.createElement('div'); row.className='trow';
+    list.forEach((p,idx)=>row.appendChild(tile(p,label==='Export order'?idx+1:0)));
+    g.appendChild(row);
+    if(hint){ const h=document.createElement('div'); h.className='tghint'; h.textContent=hint; g.appendChild(h); }
+    host.appendChild(g);
+  };
+
+  group('Export order',going,going.length>1?'drag to reorder':'');
+  group('Not exporting',aside,'');
+
+  if(S.step===STEP.JOIN) Join.syncPickers();
+  const flat=S.pages.filter(p=>p.flat).length;
+  const crops=S.pages.reduce((a,p)=>a+p.regions.length,0);
+  $('#tray-meta').innerHTML=`<b>${S.pages.length}</b> page${S.pages.length>1?'s':''}`
+    +` · <b>${flat}</b> flattened · <b>${going.length}</b> going out`
+    +(crops?` · <b>${crops}</b> crop${crops===1?'':'s'}`:'');
+  updateStepStates();
+}
+
+function buildRail(){
+  $('#steps').innerHTML=FLOW.map((name,i)=>
+    `<button class="step" data-step="${name}"><span class="n">${i+1}</span>`
+    +`<span class="t">${STEP_META[name].title}</span></button>`).join('');
+  $$('.step').forEach(b=>b.addEventListener('click',()=>{ if(!b.disabled) goStep(b.dataset.step); }));
+}
+
+function stepDone(name){
+  const p=activePage();
+  switch(name){
+    case STEP.PAGES:  return S.pages.length>0;
+    case STEP.SCAN:   return S.pages.length>0&&S.pages.every(x=>x.flat);
+    case STEP.ADJUST: return !!(p&&p.tuned);
+    case STEP.SLICE:  return !!(p&&p.regions.length);
+    case STEP.JOIN:   return S.pages.some(x=>x.joinedFrom);
+    default:          return false;
+  }
+}
+function updateStepStates(){
+  const p=activePage();
+  // the Adjust pane's shortcut to Join follows the same rule as the rail step
+  const jb=$('#btn-to-join');
+  if(jb){
+    const canJoin=STEP_META[STEP.JOIN].need(p);
+    jb.disabled=!canJoin;
+    jb.textContent=canJoin?'Join / merge photos':'Join — needs two straightened pages';
+  }
+  $$('.step').forEach(b=>{
+    const name=b.dataset.step;
+    b.classList.toggle('on',name===S.step);
+    b.disabled=!STEP_META[name].need(p);
+    b.classList.toggle('done',stepDone(name)&&name!==S.step);
+  });
+}
+
+function goStep(name){
+  if(!FLOW.includes(name)) name=STEP.SCAN;
+  const p=activePage();
+  if(!STEP_META[name].need(p)){
+    if(name===STEP.JOIN) toast('Join needs two flattened pages. Straighten each photo in step 1 first.','warn');
+    else if(!p) toast('Add a photo first.','warn');
+    else toast('Flatten this page first (step 1).','warn');
+    return;
+  }
+  if(S.step!==name) View.resetView();
+  S.step=name;
+  $$('.pane').forEach(el=>el.classList.toggle('on',el.dataset.pane===name));
+  updateStepStates();
+  drawStep();
+}
+
+/* Redraw the stage only, without re-running a step's setup — so wheel zoom
+   and pan stay cheap and cannot disturb work in progress. */
+function redrawStage(){
+  if(S.step===STEP.PAGES)       Pages.draw();
+  else if(S.step===STEP.SCAN)   Crop.draw();
+  else if(S.step===STEP.SLICE)  Slice.draw();
+  else if(S.step===STEP.ADJUST) Tone.draw();
+  else if(S.step===STEP.JOIN)   Join.draw();
+  else if(S.step===STEP.EXPORT) Exporter.draw();
+  syncHUD();
+}
+
+/* The stitching board and the plain stage are two different surfaces with
+   their own zoom. One HUD drives whichever is showing. */
+/* One surface now — every step draws into the same View, so zoom and pan
+   behave identically throughout instead of the board being a special case. */
+function syncHUD(){
+  $('#zoomhud').classList.toggle('on',!!View.src&&S.step!==STEP.PAGES);
+  $('#z-pct').textContent=Math.round(View.zoom*100)+'%';
+}
+function hudZoom(f,cx,cy){
+  if(!View.src) return;
+  View.zoomAt(cx!=null?cx:View.cw/2,cy!=null?cy:View.ch/2,f);
+  redrawStage();
+}
+function hudFit(){ View.resetView(); redrawStage(); }
+
+function drawStep(){
+  const p=activePage();
+  const ov=$('#overlay');
+  $('#pagegrid').classList.toggle('on',S.step===STEP.PAGES);
+  ov.style.pointerEvents=(S.step===STEP.PAGES)?'none':'auto';
+  ov.classList.toggle('crop-cursor',S.step===STEP.SLICE);
+  $('#stage-empty').style.display='none';
+  badge('');
+  View.clearOverlay();
+
+  if(S.step===STEP.PAGES){ View.show(null); Pages.draw(); syncHUD(); return; }
+  if(!p&&S.step!==STEP.JOIN){
+    View.show(null);
+    $('#stage-empty').innerHTML='<div><div class="big">Nothing on the copy stand</div>'
+      +'<div class="sub">Add photos in the panel on the left</div></div>';
+    $('#stage-empty').style.display='grid';
+  }
+  else if(S.step===STEP.SCAN){ Crop.refreshButtons(); Crop.draw(); }
+  else if(S.step===STEP.SLICE)    Slice.draw();
+  else if(S.step===STEP.ADJUST){ Tone.syncUI(); Tone.draw(); }
+  else if(S.step===STEP.JOIN){ if(Join.A&&Join.B) Join.draw(); else Join.enter(); }
+  else if(S.step===STEP.EXPORT)   Exporter.draw();
+
+  syncHUD();
+}
+
+/* ── slider label plumbing ──────────────────────────────────────── */
+function bindVal(id,out,fmt,onChange){
+  const el=$(id), o=$(out);
+  const upd=()=>{ o.textContent=fmt?fmt(el.value):el.value; };
+  el.addEventListener('input',()=>{ upd(); if(onChange) onChange(el.value); });
+  upd();
+}
+
+function wire(){
+  /* files */
+  const drop=$('#drop'), file=$('#file');
+  drop.addEventListener('click',()=>file.click());
+  file.addEventListener('change',()=>{ if(file.files.length) Inbox.addFiles(file.files); file.value=''; });
+  ['dragenter','dragover'].forEach(e=>{
+    document.addEventListener(e,ev=>{ ev.preventDefault(); drop.classList.add('over'); });
+  });
+  ['dragleave','drop'].forEach(e=>{
+    document.addEventListener(e,ev=>{ ev.preventDefault(); drop.classList.remove('over'); });
+  });
+  document.addEventListener('drop',ev=>{
+    if(ev.dataTransfer&&ev.dataTransfer.files.length) Inbox.addFiles(ev.dataTransfer.files);
+  });
+
+  /* stitching pane */
+  /* join pane */
+  $('#sel-a').addEventListener('change',async e=>{ Join.aId=e.target.value; Join.userPicked=true; if(await Join.prepare()) Join.draw(); });
+  $('#sel-b').addEventListener('change',async e=>{ Join.bId=e.target.value; Join.userPicked=true; if(await Join.prepare()) Join.draw(); });
+  $$('#seg-edge button').forEach(b=>b.addEventListener('click',async()=>{
+    Join.edge=b.dataset.edge;
+    $$('#seg-edge button').forEach(x=>x.classList.toggle('on',x===b));
+    if(await Join.prepare()) Join.draw();
+  }));
+  $('#btn-find-seam').addEventListener('click',()=>Join.findSeam());
+  if(!CONFIG.autoSeam) $('#btn-find-seam').style.display='none';
+  $('#btn-join').addEventListener('click',()=>Join.commit());
+  $('#btn-join-done').addEventListener('click',()=>goStep(STEP.EXPORT));
+  $('#c-diff-join').addEventListener('change',e=>{ Join.diff=e.target.checked; Join.draw(); });
+  bindVal('#s-jfeather','#v-jfeather',v=>v+' px',v=>{ Join.feather=+v; Join.draw(); });
+
+  /* crop pane */
+  $('#btn-detect').addEventListener('click',()=>Crop.detect());
+  if(!CONFIG.autoDetect){ $('#btn-detect').style.display='none'; $('#det-settings').style.display='none'; }
+  $('#btn-corners-full').addEventListener('click',()=>{
+    const p=activePage(); if(!p) return;
+    p.corners=insetCorners(p.raw,0); S.selCorner=-1; Crop.draw();
+  });
+  $('#btn-corners-inset').addEventListener('click',()=>{
+    const p=activePage(); if(!p) return;
+    p.corners=insetCorners(p.raw,0.06); S.selCorner=-1; Crop.draw();
+  });
+  bindVal('#s-canny','#v-canny');
+  bindVal('#s-blur','#v-blur',v=>v+' px');
+  bindVal('#s-rot','#v-rot',v=>(+v).toFixed(2).replace(/\.00$/,'')+'°',v=>{
+    const p=activePage(); if(p) p.rotate=+v;
+  });
+  // re-flatten on release, not on every pixel of slider travel
+  $('#s-rot').addEventListener('change',async()=>{
+    const p=activePage();
+    if(p&&p.flat) await Crop.flatten({stay:true});
+  });
+  $('#c-force-portrait').addEventListener('change',()=>Crop.draw());
+  $('#btn-flatten').addEventListener('click',()=>Crop.flatten());
+  $('#btn-asis').addEventListener('click',()=>Crop.useAsIs());
+  $('#btn-next-page').addEventListener('click',()=>Crop.nextPage());
+  $('#btn-edit-corners').addEventListener('click',()=>{ Crop.mode='edit'; View.resetView(); Crop.draw(); });
+
+  /* enhancement pane */
+  $$('[data-preset]').forEach(b=>b.addEventListener('click',()=>Tone.preset(b.dataset.preset)));
+  $('#sel-mode').addEventListener('change',()=>Tone.read());
+  ['#s-flat','#s-bri','#s-con','#s-sha','#s-hig','#s-shp','#s-thresh','#s-block','#s-cconst'].forEach(id=>{
+    $(id).addEventListener('input',()=>Tone.read());
+  });
+  $('#c-despeckle').addEventListener('change',()=>Tone.read());
+  $('#btn-auto-enhance').addEventListener('click',()=>Tone.auto());
+  $('#btn-otsu').addEventListener('click',()=>Tone.pickOtsu());
+  $('#btn-to-export').addEventListener('click',()=>goStep(STEP.EXPORT));
+  $('#btn-to-join').addEventListener('click',()=>goStep(STEP.JOIN));
+  $('#btn-lock-goslice').addEventListener('click',()=>goStep(STEP.SLICE));
+  $('#btn-lock-override').addEventListener('click',()=>{
+    const p=activePage(); if(!p) return;
+    unlockEnhancements(p);
+    toast('Enhancements unlocked. You can still slice afterwards — the slicer ignores these sliders.');
+  });
+
+  /* slicing pane */
+  bindVal('#s-pad','#v-pad',v=>v+' px');
+  $('#btn-auto-slice').addEventListener('click',()=>Slice.autoSlice());
+  $('#btn-region-order').addEventListener('click',()=>Slice.reorder());
+  $('#btn-region-clear').addEventListener('click',()=>Slice.clear());
+  $('#in-region-name').addEventListener('input',ev=>{
+    const p=activePage(); if(!p||S.selRegion<0) return;
+    p.regions[S.selRegion].label=ev.target.value||'Section '+(S.selRegion+1);
+    Slice.draw();
+  });
+  $('#btn-to-adjust').addEventListener('click',()=>goStep(STEP.ADJUST));
+  $('#btn-to-scan').addEventListener('click',()=>{
+    const first=S.pages.find(x=>!x.flat)||S.pages[0];
+    if(first){ S.activeId=first.id; renderTray(); }
+    goStep(STEP.SCAN);
+  });
+  $('#btn-order-name').addEventListener('click',()=>{
+    S.pages.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+    Join.userPicked=false; Join.A=Join.B=null;
+    Pages.draw(); renderTray(); toast('Sorted by filename.');
+  });
+  $('#btn-order-rev').addEventListener('click',()=>{
+    S.pages.reverse(); Join.userPicked=false; Join.A=Join.B=null;
+    Pages.draw(); renderTray(); toast('Order reversed.');
+  });
+
+  /* export pane */
+  bindVal('#s-q','#v-q',v=>v+'%',()=>Exporter.estimate());
+  bindVal('#s-maxdim','#v-maxdim',v=>v+' px',()=>Exporter.estimate());
+  bindVal('#s-maxdim-img','#v-maxdim-img',v=>v+' px',()=>Exporter.estimate());
+  bindVal('#s-up','#v-up',v=>(+v).toFixed(2).replace(/0$/,'')+'×');
+  $('#btn-pdf').addEventListener('click',()=>Exporter.pdf());
+  $('#btn-zip-all').addEventListener('click',()=>Exporter.zip({mode:'images'}));
+  $('#btn-zip-ocr').addEventListener('click',()=>Exporter.zip({mode:'ocr'}));
+  $('#c-lossless').addEventListener('change',()=>Exporter.estimate());
+  const pick=fn=>{ S.pages.forEach(p=>{ if(p.flat) p.include=fn(p); }); renderTray(); Exporter.draw(); };
+  $('#btn-pick-all').addEventListener('click',()=>pick(()=>true));
+  $('#btn-pick-none').addEventListener('click',()=>pick(()=>false));
+  $('#btn-pick-joined').addEventListener('click',()=>{
+    const anyJoin=S.pages.some(p=>p.joinedFrom);
+    // "joined only" should still carry the photos that were never joined,
+    // otherwise a job with one join and one loose page silently loses the page
+    pick(p=>anyJoin ? (!!p.joinedFrom||!p.consumed) : true);
+  });
+
+  /* steps nav */
+  $$('.step').forEach(b=>b.addEventListener('click',()=>{ if(!b.disabled) goStep(+b.dataset.step); }));
+
+  /* ── stage pointer routing, with pan taking priority ── */
+  const ov=$('#overlay');
+  let pan=null;
+  const startPan=ev=>{
+    pan={cx:ev.clientX,cy:ev.clientY,px:View.panX,py:View.panY};
+    ov.setPointerCapture(ev.pointerId);
+    ov.classList.add('grabbing');
+  };
+  const movePan=ev=>{
+    View.panX=pan.px+(ev.clientX-pan.cx)*View.dpr;
+    View.panY=pan.py+(ev.clientY-pan.cy)*View.dpr;
+    View.clampPan(); redrawStage();
+  };
+  const endPan=()=>{ pan=null; ov.classList.remove('grabbing'); };
+
+  ov.addEventListener('pointerdown',ev=>{
+    if(S.spaceDown||ev.button===1){ ev.preventDefault(); startPan(ev); return; }
+    if(S.step===STEP.SCAN) Crop.onDown(ev);
+    else if(S.step===STEP.SLICE) Slice.onDown(ev);
+    else if(S.step===STEP.JOIN) Join.onDown(ev);
+  });
+  ov.addEventListener('pointermove',ev=>{
+    if(pan){ movePan(ev); return; }
+    if(S.step===STEP.SCAN) Crop.onMove(ev);
+    else if(S.step===STEP.SLICE) Slice.onMove(ev);
+    else if(S.step===STEP.JOIN) Join.onMove(ev);
+  });
+  ov.addEventListener('pointerup',()=>{
+    if(pan){ endPan(); return; }
+    if(S.step===STEP.SCAN) Crop.onUp();
+    else if(S.step===STEP.SLICE) Slice.onUp();
+    else if(S.step===STEP.JOIN) Join.onUp();
+  });
+  ov.addEventListener('pointercancel',()=>{
+    if(pan){ endPan(); return; }
+    if(S.step===STEP.SCAN) Crop.onUp();
+    else if(S.step===STEP.SLICE) Slice.onUp();
+    else if(S.step===STEP.JOIN) Join.onUp();
+  });
+  ov.addEventListener('pointerleave',()=>{
+    if(S.step===STEP.SCAN&&Crop.hover>=0&&Crop.drag<0){ Crop.hover=-1; Crop.draw(); }
+  });
+
+  /* wheel = zoom about the cursor */
+  $('#stage').addEventListener('wheel',ev=>{
+    const f=ev.deltaY<0?1.14:1/1.14;
+    if(!View.src) return;
+    ev.preventDefault();
+    const r=ov.getBoundingClientRect();
+    View.zoomAt((ev.clientX-r.left)*View.dpr,(ev.clientY-r.top)*View.dpr,f);
+    redrawStage();
+  },{passive:false});
+
+  $('#z-in').addEventListener('click',()=>hudZoom(1.3));
+  $('#z-out').addEventListener('click',()=>hudZoom(1/1.3));
+  $('#z-fit').addEventListener('click',()=>hudFit());
+
+  /* Double-click a slider to put it back. defaultValue reflects the HTML
+     value attribute, so every slider gets this for free and stays correct
+     if a default is ever changed in the markup. */
+  $$('input[type=range]').forEach(el=>{
+    el.title='Double-click to reset to '+el.defaultValue;
+    el.addEventListener('dblclick',()=>{
+      el.value=el.defaultValue;
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+    });
+  });
+
+  /* turn buttons */
+  /* Rotate the SOURCE canvas and map the corners with it, so the turn is
+     visible the moment you click instead of waiting for Flatten. rotate90 is
+     an exact quarter turn, so this resamples nothing. */
+  const turn=async dir=>{
+    const p=activePage(); if(!p) return;
+    Crop.mode='edit';
+    if(p.flat&&p.regions.length&&
+       !confirm('Turning this page clears its '+p.regions.length+' crop region(s). Continue?')) return;
+    const W=p.raw.width, H=p.raw.height;
+    p.raw=rotate90(p.raw,dir);
+    p.corners=order4(p.corners.map(c=> dir>0 ? {x:H-c.y,y:c.x} : {x:c.y,y:W-c.x}));
+    p.turns=((p.turns+dir)%4+4)%4;
+    if(p.flat){ p.regions=[]; S.selRegion=-1; }
+    View.resetView();
+    Crop.draw();
+    // a page already flattened has a stale result, so redo it straight away
+    if(p.flat) await Crop.flatten({stay:true});
+    renderTray();
+  };
+  $('#btn-turn').addEventListener('click',()=>turn(1));
+  $('#btn-turn-back').addEventListener('click',()=>turn(-1));
+
+  /* keyboard */
+  document.addEventListener('keydown',ev=>{
+    if(/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    if(ev.code==='Space'){
+      ev.preventDefault();                       // stop the page scrolling
+      if(!S.spaceDown){ S.spaceDown=true; $('#overlay').classList.add('grab'); $('#overlay').style.cursor=''; }
+      return;
+    }
+    if(ev.key==='+'||ev.key==='='){ hudZoom(1.3); return; }
+    if(ev.key==='-'||ev.key==='_'){ hudZoom(1/1.3); return; }
+    if(ev.key==='0'){ hudFit(); return; }
+    const big=ev.shiftKey?10:1;
+    const dirs={ArrowLeft:[-big,0],ArrowRight:[big,0],ArrowUp:[0,-big],ArrowDown:[0,big]};
+    if(dirs[ev.key]){
+      if(S.step===STEP.SCAN&&S.selCorner>=0){ ev.preventDefault(); Crop.nudge(...dirs[ev.key]); }
+      if(S.step===STEP.JOIN){ ev.preventDefault(); Join.nudge(...dirs[ev.key]); }
+      if(S.step===STEP.SLICE&&S.selRegion>=0){ ev.preventDefault(); Slice.nudge(...dirs[ev.key]); }
+      return;
+    }
+    if((ev.key==='Delete'||ev.key==='Backspace')&&S.step===STEP.SLICE&&S.selRegion>=0){ ev.preventDefault(); Slice.deleteSelected(); return; }
+    if((ev.key==='b'||ev.key==='B')&&S.step===STEP.ADJUST&&!Tone.showOriginal){ Tone.showOriginal=true; Tone.draw(); }
+    if(ev.key>='1'&&ev.key<='9'&&!ev.metaKey&&!ev.ctrlKey){
+      const name=FLOW[+ev.key-1];
+      if(name){ const b=$(`.step[data-step="${name}"]`); if(b&&!b.disabled) goStep(name); }
+    }
+  });
+  document.addEventListener('keyup',ev=>{
+    if(ev.code==='Space'){ S.spaceDown=false; $('#overlay').classList.remove('grab','grabbing'); }
+    if((ev.key==='b'||ev.key==='B')&&Tone.showOriginal){ Tone.showOriginal=false; if(S.step===STEP.ADJUST) Tone.draw(); }
+  });
+
+  /* resize — never rebuild the stitching board, that would throw away
+     an alignment the user just made by hand */
+  let rt=null;
+  window.addEventListener('resize',()=>{
+    clearTimeout(rt);
+    rt=setTimeout(()=>drawStep(),110);
+  });
+}
+
+/* ── boot ───────────────────────────────────────────────────────── */
+(async function init(){
+  wire();
+  document.title=APP.name;
+  $('#app-name').textContent=APP.name;
+  $('#app-tag').textContent='v'+APP.version+' · '+APP.tagline;
+  $('#app-name').title=APP.name+' v'+APP.version;
+  buildRail();
+  renderTray();
+  goStep(STEP.PAGES);
+  Crop.refreshButtons();
+  Tone.applyLock();
+  await loadLibraries();
+  Exporter.summary();
+  Crop.refreshButtons();
+  if(location.protocol==='file:'){
+    toast('Opened from file:// — if OpenCV fails to start, serve the folder over HTTP instead (python3 -m http.server).','warn');
+  }
+})();
+
+})();
+</script>
+</body>
+</html>
