@@ -2,7 +2,7 @@
 
 A browser-based image processing tool to crop, perspective-correct, adjust, and join photos into clean PDFs and OCR-ready image archives. Built specifically for phone photos of restaurant menus, but fully applicable to any document scanning workflow. Everything runs entirely client-side in the browser—no photos are ever uploaded to a server.
 
-**Live Demo:** [https://<username>.github.io/<repository>/](https://tarroys.github.io/menu-scanner/)
+**Live Demo:** [https://tarroys.github.io/menu-scanner/](https://tarroys.github.io/menu-scanner/)
 
 ---
 
