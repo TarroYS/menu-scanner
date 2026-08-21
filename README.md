@@ -2,7 +2,7 @@
 A tool to crop, perspective correct, adjust and join images together
 Turns phone photos of restaurant menus into a clean PDF and OCR-ready images. Everything runs in the browser — no photo ever leaves the machine it was opened on.
 
-Built for the Wonders Menu Change workflow, but there is nothing restaurant-specific in the code.
+Built for the Menu Change workflow, but there is nothing restaurant-specific in the code.
 
 Live: https://<username>.github.io/<repo>/ ← replace once Pages is on
 
