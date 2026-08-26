@@ -118,6 +118,16 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 #side::-webkit-scrollbar{width:9px}
 #side::-webkit-scrollbar-thumb{background:#d8d6d1;border-radius:9px;border:3px solid var(--plate)}
 .pane{display:none;padding:16px 16px 22px}
+/* "Where next" belongs at the END of a pane — you press it after doing the
+   work — but it must not need scrolling to reach. Sticky gets both: bottom of
+   the reading order, always on screen, same place on every step. */
+.pane-foot{
+  position:sticky;bottom:-22px;margin:18px -16px -22px;padding:14px 16px 16px;
+  background:linear-gradient(180deg,#ffffff00 0,var(--surface) 14px);
+  border-top:1px solid var(--line);
+}
+.pane-foot .choices{margin:0}
+.pane-foot .exp-why{font-size:11px;margin-top:5px}
 .pane.on{display:block}
 .eyebrow{
   font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.16em;
@@ -207,6 +217,7 @@ details.adv>summary::-webkit-details-marker{display:none}
 details.adv>summary::before{content:"+";font-size:12px;line-height:1;width:10px}
 details.adv[open]>summary::before{content:"\2013"}
 details.adv>summary:hover,details.adv[open]>summary{color:var(--paper)}
+details.adv>summary.strong{color:var(--paper);font-size:10.5px}
 .drop{
   border:1px dashed var(--rule);border-radius:var(--r);padding:20px 14px;text-align:center;
   cursor:pointer;transition:border-color .15s,background .15s;
@@ -363,6 +374,13 @@ details.adv>summary:hover,details.adv[open]>summary{color:var(--paper)}
   font-family:var(--mono);font-size:11px;line-height:1;
 }
 #zoomhud button:hover{background:var(--press);color:var(--paper)}
+#z-deep{
+  position:absolute;bottom:44px;right:12px;z-index:4;display:none;
+  font-family:var(--mono);font-size:10px;color:var(--graphite-dim);
+  background:#ffffffdd;border:1px solid var(--line);border-radius:var(--r);
+  padding:3px 8px;pointer-events:none;
+}
+#z-deep.on{display:block}
 #zoomhud .pct{
   font-family:var(--mono);font-size:10px;color:var(--paper);padding:0 8px;
   min-width:48px;text-align:center;font-variant-numeric:tabular-nums;
@@ -401,8 +419,14 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
   animation:sweep 1.1s cubic-bezier(.55,.1,.45,.9) infinite;
 }
 @keyframes sweep{0%{transform:translateX(-110%)}100%{transform:translateX(400%)}}
+@keyframes spin360{to{transform:rotate(360deg)}}
+#stage.spin #view,#stage.spin #overlay{animation:spin360 .7s cubic-bezier(.45,0,.35,1)}
 #busy-msg{
   font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--graphite);
+}
+#busy-flavour{
+  font-family:var(--sans);font-size:11.5px;color:var(--graphite-dim);
+  margin-top:7px;min-height:16px;font-style:italic;
 }
 
 /* ============================================================
@@ -502,8 +526,45 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
 }
 
 /* ---------- Toast ---------- */
+#about{
+  position:fixed;inset:0;z-index:80;display:grid;place-items:center;
+  background:#22211f55;backdrop-filter:blur(3px);
+}
+#about[hidden]{display:none}
+#about .card{
+  position:relative;width:min(400px,90vw);background:var(--surface);
+  border:1px solid var(--line);border-radius:8px;padding:26px 26px 22px;
+  box-shadow:0 18px 60px #0000002e;animation:tin .2s ease-out;
+}
+#about h3{
+  margin:0;font-family:var(--cond);font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;font-size:19px;color:var(--paper);
+}
+#about .v{
+  margin:4px 0 16px;font-family:var(--mono);font-size:11px;color:var(--accent);
+}
+#about p{margin:0 0 12px;font-size:12.5px;line-height:1.6;color:var(--graphite)}
+#about .lbl{
+  font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--graphite-dim);margin-bottom:3px;
+}
+#about .mono{font-family:var(--mono);font-size:11px;color:var(--paper)}
+#about .keys{width:100%;border-collapse:collapse;margin:0 0 12px}
+#about .keys td{padding:2.5px 0;font-size:11.5px;color:var(--graphite);vertical-align:top}
+#about .keys td:first-child{
+  width:74px;font-family:var(--mono);font-size:10.5px;color:var(--paper);white-space:nowrap;
+}
+#about .card{max-height:88vh;overflow-y:auto}
+#about .thanks{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--line-soft);color:var(--paper)}
+#about .x{
+  position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:5px;
+  background:none;border:0;color:var(--graphite-dim);cursor:pointer;font-size:18px;line-height:1;
+}
+#about .x:hover{color:var(--paper);background:var(--press)}
+.brand{cursor:pointer;user-select:none}
 #toasts{position:fixed;bottom:16px;right:16px;z-index:60;display:flex;flex-direction:column;gap:7px;align-items:flex-end}
 .toast{
+  white-space:pre-line;
   background:var(--surface);border:1px solid var(--rule);border-left:3px solid var(--accent);
   border-radius:0 var(--r) var(--r) 0;padding:9px 13px;font-size:12.5px;max-width:340px;
   box-shadow:0 6px 20px #00000018;animation:tin .18s ease-out;
@@ -567,8 +628,8 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       </div>
 
       <div class="row" style="margin-top:10px">
-        <button class="btn sm" id="btn-turn">↻ Turn</button>
-        <button class="btn sm" id="btn-turn-back">↺ Back</button>
+        <button class="btn sm" id="btn-turn-back">↺ Rotate left</button>
+        <button class="btn sm" id="btn-turn">Rotate right ↻</button>
       </div>
 
       <details class="adv">
@@ -609,20 +670,29 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         </div>
       </div>
 
-      <div class="note" style="margin-bottom:14px">Nothing is adjusted until you press something — what you see now is the straightened photo, untouched.</div>
-
-      <button class="btn wide" id="btn-compare" disabled>Before / after — nothing changed yet</button>
-      <div class="exp-why">Flicks between the untouched page and your adjusted one, in place. Comparing without the picture moving is the easiest way to see what actually changed. <kbd>B</kbd> does the same while held.</div>
+      <div class="note" style="margin-bottom:12px">Untouched until you press something. Optional — a well-lit photo often needs nothing.</div>
 
       <fieldset id="tone-controls">
-      <button class="btn primary wide" id="btn-auto-enhance" style="margin-top:16px">Auto-enhance all images</button>
-      <div class="note" style="margin-top:9px">Measures <b>every</b> straightened image separately and sets each one. Most jobs need nothing else.</div>
+      <button class="btn primary wide" id="btn-auto-enhance">Auto-enhance all images</button>
+      <div class="exp-why">Measures <b>every</b> image separately, and picks the strength below for each. <kbd>A</kbd></div>
 
-      <div class="row" style="margin-top:12px">
+      <div class="eyebrow" style="margin-top:16px">Strength on this page</div>
+      <div class="seg" id="seg-strength">
+        <button data-strength="0.25">Extra gentle</button>
+        <button data-strength="0.5">Gentle</button>
+        <button data-strength="1" class="on">Normal</button>
+        <button data-strength="1.4">Strong</button>
+      </div>
+      <div class="exp-why"><b>Extra gentle</b> for a cover that is mostly photographs, <b>Gentle</b> for a page with one or two. A page of prices takes <b>Normal</b> or <b>Strong</b>.</div>
+
+      <button class="btn wide" id="btn-compare" style="margin-top:10px" disabled>Before / after — nothing changed yet</button>
+      <div class="exp-why">Flicks in place, so you can see what changed. <kbd>B</kbd> peeks while held.</div>
+
+      <div class="row" style="margin-top:10px">
         <button class="btn sm" id="btn-reset-one">Reset this image</button>
         <button class="btn sm" id="btn-reset-all">Reset all images</button>
       </div>
-      <div class="exp-why">Clears the tone changes and puts the page back to untouched. <b>Cropping, straightening and joining are not affected.</b></div>
+      <div class="exp-why">Clears tone only — cropping, straightening and joining are untouched. <kbd>R</kbd></div>
 
       <details class="adv">
         <summary>Presets</summary>
@@ -669,7 +739,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       </details>
 
       <details class="adv">
-        <summary>Lighting by hand</summary>
+        <summary class="strong"><b>Manual lighting adjustments</b></summary>
         <label class="field">
           <span class="lab"><span>Flatten lighting</span><span class="val" id="v-flat">0</span></span>
           <input type="range" id="s-flat" min="0" max="100" step="1" value="0">
@@ -700,13 +770,13 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
 
       </fieldset>
 
-      <div class="grp">
+      <div class="pane-foot">
         <div class="choices">
-          <button class="btn equal wide" id="btn-to-export">Continue to export</button>
-          <div class="exp-why">Each photo is a page on its own.</div>
+          <button class="btn equal wide" id="btn-to-join">4 &middot; Join / merge photos</button>
+          <div class="exp-why">The menu came in halves.</div>
           <div class="orline">or</div>
-          <button class="btn equal wide" id="btn-to-join">Join / merge photos</button>
-          <div class="exp-why">The menu arrived in halves that need putting together into one page first.</div>
+          <button class="btn equal wide" id="btn-to-export">5 &middot; Continue to export</button>
+          <div class="exp-why">Each photo is its own page.</div>
         </div>
       </div>
     </section>
@@ -764,8 +834,8 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         </div>
       </div>
 
-      <div class="grp">
-        <button class="btn primary wide" id="btn-to-scan">Next — straighten them</button>
+      <div class="pane-foot">
+        <button class="btn primary wide" id="btn-to-scan">2 &middot; Next — straighten them</button>
       </div>
     </section>
 
@@ -774,11 +844,11 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <div class="eyebrow">Which two halves</div>
       <div class="stack">
         <label class="field" style="margin-bottom:6px">
-          <span class="lab"><span>A — stays put</span></span>
+          <span class="lab"><span>Join — page A</span><span class="val">stays put</span></span>
           <select id="sel-a"></select>
         </label>
         <label class="field">
-          <span class="lab"><span>B — moves</span></span>
+          <span class="lab"><span>Join — page B</span><span class="val">slides onto A</span></span>
           <select id="sel-b"></select>
         </label>
       </div>
@@ -792,14 +862,14 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         <div class="note" style="margin-top:9px">Two portrait photos of a wide menu go <b>beside</b>. Top and bottom halves of a long menu go <b>under</b>. Both halves are re-warped from the original pixels to one matched scale, so joining costs no extra sharpness.</div>
       </div>
 
-      <div class="grp">
-        <div class="eyebrow">Line up the seam</div>
+      <details class="adv">
+        <summary class="strong"><b>Line up the seam</b></summary>
         <div class="stack">
           <button class="btn primary wide" id="btn-find-seam">Find the seam automatically</button>
           <label class="check"><input type="checkbox" id="c-diff-join"> Difference view — aligned goes black</label>
         </div>
-        <div class="note"><b>Drag anywhere on the page</b> to slide B over A. <kbd>←↑↓→</kbd> nudges 1&nbsp;px, <kbd>Shift</kbd> 10&nbsp;px.<br><br>Tick <b>Difference view</b>, scroll to zoom into the seam, and nudge until the overlapping strip goes black. Black means the two halves match exactly.</div>
-      </div>
+        <div class="note" style="margin-top:9px"><b>Drag anywhere on the page</b> to slide B over A. <kbd>←↑↓→</kbd> nudges 1&nbsp;px, <kbd>Shift</kbd> 10&nbsp;px.<br><br>Tick <b>Difference view</b>, scroll to zoom into the seam, and nudge until the overlapping strip goes black. Black means the two halves match exactly.</div>
+      </details>
 
       <details class="adv">
         <summary>Seam details</summary>
@@ -813,7 +883,10 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <div class="grp">
         <button class="btn primary wide" id="btn-join">Join into one page</button>
         <div class="note" style="margin-top:9px">The two halves are set aside, not deleted. Delete the joined page to get them back. You stay here afterwards, so you can join another pair.</div>
-        <button class="btn wide" id="btn-join-done" style="margin-top:12px">Done joining — continue to export</button>
+      </div>
+
+      <div class="pane-foot">
+        <button class="btn primary wide" id="btn-join-done">5 &middot; Done joining — continue to export</button>
       </div>
     </section>
 
@@ -908,13 +981,14 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <button id="z-in" title="Zoom in">+</button>
       <button id="z-fit" title="Fit to window">fit</button>
     </div>
+    <div id="z-deep">you can count the paper fibres from here</div>
     <div id="stage-empty">
       <div>
         <div class="big">Nothing on the copy stand</div>
         <div class="sub">Add photos in the panel on the left</div>
       </div>
     </div>
-    <div id="busy"><div class="scanbox"><div class="scanbar"></div><div id="busy-msg">Working</div></div></div>
+    <div id="busy"><div class="scanbox"><div class="scanbar"></div><div id="busy-msg">Working</div><div id="busy-flavour"></div></div></div>
   </main>
 
   <!-- ══ TRAY ══ -->
@@ -927,6 +1001,38 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <span class="tray-empty">No pages yet</span>
     </div>
   </footer>
+</div>
+
+<div id="about" hidden>
+  <div class="card">
+    <button class="x" id="about-close" title="Close">&times;</button>
+    <h3 id="about-name">Menu Scan</h3>
+    <p class="v" id="about-ver">—</p>
+    <p>Turns phone photos of restaurant menus into a clean PDF and OCR-ready
+       images. Everything runs in this browser — no photo has left your machine.</p>
+    <p class="lbl">Built on</p>
+    <p class="mono" id="about-libs">—</p>
+    <p class="lbl">Shortcuts</p>
+    <table class="keys">
+      <tr><td>Enter</td><td>do the main thing on this step</td></tr>
+      <tr><td>[ &nbsp;]</td><td>previous / next photo</td></tr>
+      <tr><td>U</td><td>use the photo as-is, no crop</td></tr>
+      <tr><td>, &nbsp;.</td><td>turn left / right</td></tr>
+      <tr><td>A</td><td>auto-enhance all images</td></tr>
+      <tr><td>R</td><td>reset this image</td></tr>
+      <tr><td>D</td><td>difference view, when joining</td></tr>
+      <tr><td>B</td><td>hold to peek at the original</td></tr>
+      <tr><td>1&ndash;5</td><td>jump to a step</td></tr>
+      <tr><td>Scroll</td><td>zoom &middot; <b>Space</b>+drag to pan &middot; <b>0</b> to fit</td></tr>
+      <tr><td>&larr;&uarr;&darr;&rarr;</td><td>nudge 1&nbsp;px &middot; <b>Shift</b> for 10</td></tr>
+      <tr><td>Ctrl/&#8984; Z</td><td>undo &middot; <b>Shift</b> to redo</td></tr>
+      <tr><td>?</td><td>this card</td></tr>
+    </table>
+
+    <p class="lbl">For</p>
+    <p>The Menu Change team. Every corner you drag saves someone a retype.</p>
+    <p class="thanks">Thanks for using it. Tell me what breaks.</p>
+  </div>
 </div>
 
 <div id="toasts"></div>
@@ -949,10 +1055,41 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
 
 /* Change the name here and it follows through the title bar, the toasts and
    every exported filename. */
+/* ── Flourishes ───────────────────────────────────────────────────
+   Rules they all follow: never delay the work, never fire during a
+   client screenshare without being asked for, and never make a joke
+   at the expense of the food or the people who cook it. */
+const KITCHEN=['Plating','Garnishing','Simmering','Reducing','Warming the plates',
+  'Wiping the pass','Tasting for seasoning','Calling service','Folding the napkins',
+  'Chasing the ticket','Firing the mains'];
+const FORTUNES=[
+  'A straight page is a happy page.',
+  'The corners you check are the corners that behave.',
+  'Fortune cookies are Japanese-American. Now you know.',
+  'Someone will ask for this in Excel. Be ready.',
+  'The menu that photographs well is never the one you get.',
+  'Laminate reflects. Plan accordingly.',
+  'Every price is temporary.',
+  'You will be asked to do this again on Friday.',
+  'The best crop is the one you did not have to redo.',
+  'A joined page is two problems agreeing to be one.',
+  'Check the back page. There is always a back page.',
+  'Good light beats every slider in this app.'
+];
+const EMPTY_LINES=[
+  ['Nothing on the copy stand','Add photos in the panel on the left'],
+  ['The copy stand is empty','Drop a menu photo anywhere on this window'],
+  ['No menus yet','Add photos in the panel on the left'],
+  ['Waiting for menus','Drop them anywhere, or use Add photos'],
+  ['An empty copy stand is a tidy copy stand','Add photos when you are ready']
+];
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const EMPTY_PICK=pick(EMPTY_LINES);
+
 const APP={
   name:'Menu Scan',
-  version:'1.3',
-  built:'2026-08-21',
+  version:'1.8',
+  built:'2026-08-26',
   tagline:'photos to PDF & OCR'
 };
 
@@ -976,17 +1113,27 @@ function toast(msg,kind){
 }
 
 let busyDepth=0;
+let busyFlavourTimer=null;
 async function busy(msg,fn){
   if(busyDepth>0){ toast('Still working — one job at a time.','warn'); return; }
   busyDepth++;
   document.body.classList.add('is-busy');
   $('#busy-msg').textContent=msg;
   $('#busy').classList.add('on');
+  /* The real progress line stays put and keeps saying "Image 3 of 5". The
+     kitchen verb rotates underneath it, so nothing informative is displaced. */
+  const fl=$('#busy-flavour');
+  if(CONFIG.playful){
+    fl.textContent=pick(KITCHEN)+'…';
+    busyFlavourTimer=setInterval(()=>{ fl.textContent=pick(KITCHEN)+'…'; },1400);
+  }else fl.textContent='';
   await raf(); await raf();               // let the paint land before we block
   try{ return await fn(); }
   finally{
     if(--busyDepth<=0){
       busyDepth=0;
+      clearInterval(busyFlavourTimer); busyFlavourTimer=null;
+      $('#busy-flavour').textContent='';
       $('#busy').classList.remove('on');
       document.body.classList.remove('is-busy');
     }
@@ -1231,7 +1378,12 @@ const CONFIG={
      Magic enhance and CLAHE. Everything still works either way — every
      OpenCV path in this file has a JS fallback that is exercised by the
      checks. */
-  useOpenCV:false
+  useOpenCV:false,
+
+  /* Flourishes. The session summary and the About card are NOT gated here —
+     they are information, and one of them is how you spot a stale deploy.
+     This flag covers the jokes only. */
+  playful:true
 };
 const STEP={PAGES:'pages',SCAN:'scan',ADJUST:'adjust',SLICE:'slice',JOIN:'join',EXPORT:'export'};
 const STEP_META={
@@ -1247,7 +1399,7 @@ const FLOW=CONFIG.enableSlicing
   : [STEP.PAGES,STEP.SCAN,STEP.ADJUST,STEP.JOIN,STEP.EXPORT];
 
 const DEFAULT_ADJ={
-  mode:'color', flat:0, bri:0, con:0, sha:0, hig:0, shp:0,
+  mode:'color', strength:1, flat:0, bri:0, con:0, sha:0, hig:0, shp:0,
   thresh:160, block:31, cconst:9, despeckle:true
 };
 
@@ -1259,6 +1411,7 @@ const S={
   selCorner:-1,
   selRegion:-1,
   spaceDown:false,
+  startedAt:0,      // first import, for the session summary
   dragPid:null
 };
 
@@ -1274,6 +1427,7 @@ function newPage(canvas,name){
     include:true,                // does this page go into the export?
     flattenedAt:0,               // timestamp, drives the tick in the strip
     joinedFrom:null,             // [idA,idB] when this page is a join result
+    sources:[name||'page'],      // original photo names that make up this page
     tuned:false,                 // has anyone actually touched the tone controls?
     cornersVerified:false,       // did a human actually check the corners?
     corners:null,                // 4 pts in raw-image space, TL TR BR BL
@@ -1292,6 +1446,103 @@ function newPage(canvas,name){
   };
 }
 const activePage = ()=> S.pages.find(p=>p.id===S.activeId)||null;
+
+/* ── Undo ─────────────────────────────────────────────────────────
+   Snapshots hold page METADATA plus canvas REFERENCES, never pixel copies.
+   That is what makes 30 steps affordable: canvases are only ever replaced,
+   never written in place, so twenty snapshots of an unchanged page all point
+   at the same bitmap and cost nothing extra. Only flatten and rotate create
+   new ones, so memory tracks how many of THOSE are on the stack rather than
+   the stack depth.
+
+   Derived caches (_proxy, _preview) are rebuilt on restore rather than
+   stored — they are a function of flat, and keeping them would be storing
+   state that can go stale.                                              */
+const History={
+  undoStack:[], redoStack:[], max:30, busy:false, lastKey:'', lastAt:0,
+
+  snap(){
+    return {
+      activeId:S.activeId, step:S.step,
+      pages:S.pages.map(p=>({
+        id:p.id, name:p.name, raw:p.raw, flat:p.flat, thumb:p.thumb,
+        corners:p.corners&&p.corners.map(c=>({x:c.x,y:c.y})),
+        geom:p.geom&&{corners:p.geom.corners.map(c=>({x:c.x,y:c.y})),
+                      W:p.geom.W,H:p.geom.H,rot:p.geom.rot,turns:p.geom.turns},
+        rotate:p.rotate, turns:p.turns, adj:Object.assign({},p.adj),
+        include:p.include, consumed:p.consumed, tuned:p.tuned,
+        cornersVerified:p.cornersVerified, flattenedAt:p.flattenedAt,
+        joinedFrom:p.joinedFrom&&p.joinedFrom.slice(),
+        sources:(p.sources||[]).slice(),
+        regions:p.regions.map(r=>Object.assign({},r))
+      }))
+    };
+  },
+
+  /* Consecutive edits of the same kind inside a short window collapse into
+     one entry, so dragging a slider is one undo rather than fifty. */
+  push(label,key){
+    if(this.busy) return;
+    const now=Date.now();
+    if(key&&key===this.lastKey&&now-this.lastAt<900){ this.lastAt=now; return; }
+    this.lastKey=key||''; this.lastAt=now;
+    this.undoStack.push({label,state:this.snap()});
+    if(this.undoStack.length>this.max) this.undoStack.shift();
+    this.redoStack.length=0;
+  },
+
+  apply(st){
+    this.busy=true;
+    const byId=new Map(S.pages.map(p=>[p.id,p]));
+    S.pages=st.pages.map(sp=>{
+      const p=byId.get(sp.id)||newPage(sp.raw,sp.name);
+      p.id=sp.id; p.name=sp.name; p.raw=sp.raw; p.thumb=sp.thumb;
+      p.corners=sp.corners&&sp.corners.map(c=>({x:c.x,y:c.y}));
+      p.geom=sp.geom&&{corners:sp.geom.corners.map(c=>({x:c.x,y:c.y})),
+                       W:sp.geom.W,H:sp.geom.H,rot:sp.geom.rot,turns:sp.geom.turns};
+      p.rotate=sp.rotate; p.turns=sp.turns; p.adj=Object.assign({},sp.adj);
+      p.include=sp.include; p.consumed=sp.consumed; p.tuned=sp.tuned;
+      p.cornersVerified=sp.cornersVerified; p.flattenedAt=sp.flattenedAt;
+      p.joinedFrom=sp.joinedFrom&&sp.joinedFrom.slice();
+      p.sources=sp.sources.slice();
+      p.regions=sp.regions.map(r=>Object.assign({},r));
+      p.flat=sp.flat||null;
+      p._proxy=p.flat?scaleCanvas(p.flat,1400):null;   // derived, so rebuilt
+      invalidate(p);
+      return p;
+    });
+    S.activeId=st.activeId;
+    Join.A=Join.B=null; Join.aId=Join.bId=null;
+    S.selCorner=-1; S.selRegion=-1; Crop.hover=-1;
+    const p=activePage();
+    Crop.mode=(p&&p.flat)?'result':'edit';
+    View.resetView();
+    renderTray();
+    if(FLOW.includes(st.step)&&STEP_META[st.step].need(activePage())) S.step=st.step;
+    $$('.pane').forEach(el=>el.classList.toggle('on',el.dataset.pane===S.step));
+    updateStepStates();
+    drawStep();
+    if(S.step===STEP.PAGES) Pages.draw();
+    this.busy=false; this.lastKey='';
+  },
+
+  undo(){
+    if(busyDepth>0){ toast('Wait for the current job to finish.','warn'); return; }
+    const e=this.undoStack.pop();
+    if(!e){ toast('Nothing to undo.','warn'); return; }
+    this.redoStack.push({label:e.label,state:this.snap()});
+    this.apply(e.state);
+    toast(`Undid: ${e.label}. ${this.undoStack.length} step${this.undoStack.length===1?'':'s'} left.`);
+  },
+  redo(){
+    if(busyDepth>0) return;
+    const e=this.redoStack.pop();
+    if(!e){ toast('Nothing to redo.','warn'); return; }
+    this.undoStack.push({label:e.label,state:this.snap()});
+    this.apply(e.state);
+    toast(`Redid: ${e.label}.`);
+  }
+};
 
 function invalidate(p){ p._preview=null; p._previewKey=''; }
 /* Which profile the sliders are editing. Global, not per page — you are
@@ -1547,6 +1798,7 @@ const Inbox={
         +(conv?' — HEIC/TIFF need converting to JPG first. On iPhone: Settings › Camera › Formats › Most Compatible.':''),'err');
     }
     if(added.length){
+      if(!S.startedAt) S.startedAt=Date.now();
       S.activeId=added[0].id; S.selCorner=-1;
       Join.userPicked=false; Join.A=Join.B=null;
       renderTray(); goStep(STEP.PAGES); Pages.draw();
@@ -1571,7 +1823,8 @@ const Pages={
   draw(){
     const host=$('#pagegrid'); host.innerHTML='';
     if(!S.pages.length){
-      host.innerHTML='<div class="pgrid-empty">No photos yet — use <b>Add photos</b> on the left, '
+      const [big]=CONFIG.playful?EMPTY_PICK:EMPTY_LINES[0];
+      host.innerHTML=`<div class="pgrid-empty">${big} — use <b>Add photos</b> on the left, `
         +'or drop them anywhere on this window.</div>';
       return;
     }
@@ -1615,9 +1868,10 @@ const Pages={
           ev.stopPropagation();
           const j=i+ +mv;
           if(j<0||j>=S.pages.length) return;
-          const moved=S.pages.splice(i,1)[0];
-          S.pages.splice(j,0,moved);
-          Join.userPicked=false; Join.A=Join.B=null;
+          /* Route through movePage rather than splicing here. A second
+             reorder implementation is how the arrows ended up outside the
+             undo history in the first place. */
+          movePage(p.id,S.pages[j].id,+mv>0);
           renderTray(); this.draw();
           return;
         }
@@ -1672,6 +1926,7 @@ const Pages={
    views can never disagree about the order. */
 function movePage(fromId,ontoId,after){
   if(!fromId||fromId===ontoId) return;
+  History.push('reorder');
   const from=S.pages.findIndex(x=>x.id===fromId);
   if(from<0) return;
   const moved=S.pages.splice(from,1)[0];
@@ -1684,6 +1939,7 @@ function movePage(fromId,ontoId,after){
 }
 function removePage(p){
   const i=S.pages.indexOf(p); if(i<0) return;
+  History.push('remove “'+p.name+'”');
   if(p.joinedFrom) p.joinedFrom.forEach(id=>{
     const src=S.pages.find(x=>x.id===id);
     if(src){ src.consumed=false; src.include=true; }
@@ -1706,29 +1962,23 @@ const Join={
   pool(){ return S.pages.filter(p=>p.flat&&!p.consumed); },
 
   async enter(){
-    const pool=this.pool();
-    if(pool.length<2){ this.A=this.B=null; this.syncPickers(); this.draw(); return; }
-    /* Default to the first two in PAGE ORDER, which is what the grid and the
-       strip show. Reordering clears userPicked so the defaults follow the new
-       order rather than clinging to whatever was selected first. */
-    if(!this.userPicked||!pool.some(p=>p.id===this.aId)) this.aId=pool[0].id;
-    if(!this.userPicked||!pool.some(p=>p.id===this.bId)||this.bId===this.aId)
-      this.bId=(pool.find(p=>p.id!==this.aId)||pool[0]).id;
+    if(!this.syncPickers()){ this.A=this.B=null; this.draw(); return; }
     if(await this.prepare()) this.draw();
   },
 
   syncPickers(){
     const pool=this.pool();
+    /* Nothing is pre-selected. Two pages chosen for you and a preview already
+       on screen reads as "this is what I am about to do", which is not what
+       the tool meant — it was only a guess. Empty until you say so. */
     for(const [sel,key] of [['#sel-a','aId'],['#sel-b','bId']]){
-      const el=$(sel); const keep=this[key];
-      el.innerHTML=pool.map((p,i)=>`<option value="${p.id}">${pad(i+1)} · ${p.name}</option>`).join('');
-      if(pool.some(p=>p.id===keep)) el.value=keep;
-      else if(pool.length) { this[key]=pool[key==='aId'?0:Math.min(1,pool.length-1)].id; el.value=this[key]; }
-      else this[key]=null;
+      const el=$(sel), keep=this[key];
+      el.innerHTML='<option value="">— choose a page —</option>'
+        + pool.map((q,i)=>`<option value="${q.id}">${pad(i+1)} · ${q.name}</option>`).join('');
+      if(keep&&pool.some(q=>q.id===keep)) el.value=keep;
+      else { this[key]=null; el.value=''; }
     }
-    if(this.aId&&this.aId===this.bId&&pool.length>1){
-      this.bId=pool.find(p=>p.id!==this.aId).id; $('#sel-b').value=this.bId;
-    }
+    if(this.aId&&this.aId===this.bId){ this.bId=null; $('#sel-b').value=''; }
     const ready=pool.length>=2&&this.aId&&this.bId&&this.aId!==this.bId;
     ['#btn-find-seam','#btn-join'].forEach(id=>{ const b=$(id); if(b) b.disabled=!ready; });
     return ready;
@@ -1783,9 +2033,13 @@ const Join={
   draw(){
     if(!this.A||!this.B){
       View.show(null); $('#stage-empty').style.display='grid';
-      $('#stage-empty').innerHTML='<div><div class="big">Two corrected photos needed</div>'
-        +'<div class="sub">Scan and flatten at least two, then come back</div></div>';
-      badge(''); return;
+      const enough=this.pool().length>=2;
+      $('#stage-empty').innerHTML=enough
+        ? '<div><div class="big">Pick two pages to join</div>'
+          +'<div class="sub">Choose page A and page B on the left</div></div>'
+        : '<div><div class="big">Two straightened pages needed</div>'
+          +'<div class="sub">Straighten at least two photos, then come back</div></div>';
+      badge(''); $('#join-readout').textContent='—'; return;
     }
     $('#stage-empty').style.display='none';
     View.show(this.composite(this.pk,this.diff),52);
@@ -1803,6 +2057,13 @@ const Join={
     g.fillStyle=CROPC;
     g.fillText('B',tl.x+5*d,tl.y+14*d);
     g.restore();
+    /* Label each half with the original photos inside it, so a joined page
+       still shows what it was made from. */
+    const a=S.pages.find(q=>q.id===this.aId), b=S.pages.find(q=>q.id===this.bId);
+    const ax=(0-x0)*this.pk, ay=(0-y0)*this.pk;
+    this.tag(g,a,ax,ay,this.pA.width,this.pA.height,ACCENT);
+    this.tag(g,b,bx,by,this.pB.width,this.pB.height,CROPC);
+
     const horiz=this.edge==='right';
     const overlap=Math.round(horiz?(this.A.width-this.ox):(this.A.height-this.oy));
     const out=this.composite(this.pk,false);
@@ -1813,6 +2074,30 @@ const Join={
     $('#join-readout').innerHTML=
        `A <b>${this.A.width}×${this.A.height}</b><br>B <b>${this.B.width}×${this.B.height}</b>`
       +`<br>overlap <b>${overlap}px</b><br>preview <b>${Math.round(this.pk*100)}%</b>`;
+  },
+
+  /* An upward arrow under a half, naming the originals inside it. */
+  tag(g,page,px,py,pw,ph,colour){
+    if(!page) return;
+    const d=View.dpr;
+    const names=(page.sources&&page.sources.length?page.sources:[page.name]);
+    const tl=View.toView(px,py), br=View.toView(px+pw,py+ph);
+    const cx=(tl.x+br.x)/2, base=Math.min(br.y+16*d,View.ch-8*d);
+    g.save();
+    g.font=`${10*d}px "IBM Plex Mono",monospace`;
+    const lines=names.map((n,i)=>`${i+1}. ${n}`);
+    const wid=Math.max(...lines.map(t=>g.measureText(t).width))+14*d;
+    const hgt=lines.length*13*d+9*d;
+    const bx2=clamp(cx-wid/2,4*d,View.cw-wid-4*d);
+    g.fillStyle='#ffffffee'; g.strokeStyle=colour; g.lineWidth=1.2*d;
+    g.beginPath(); g.rect(bx2,base,wid,hgt); g.fill(); g.stroke();
+    // arrow pointing up at the half it describes
+    g.beginPath();
+    g.moveTo(cx,base-7*d); g.lineTo(cx-5*d,base); g.lineTo(cx+5*d,base); g.closePath();
+    g.fillStyle=colour; g.fill();
+    g.fillStyle=INK;
+    lines.forEach((t,i)=>g.fillText(t,bx2+7*d,base+15*d+i*13*d));
+    g.restore();
   },
 
   onDown(ev){
@@ -1855,6 +2140,7 @@ const Join={
   async commit(){
     if(!this.A||!this.B) return;
     const a=S.pages.find(p=>p.id===this.aId), b=S.pages.find(p=>p.id===this.bId);
+    History.push('join “'+a.name+'” + “'+b.name+'”');
     let out;
     await busy('Joining at full resolution',async()=>{ await raf(); out=this.composite(1,false); });
     if(!out) return;
@@ -1862,6 +2148,9 @@ const Join={
     pg.corners=insetCorners(out,0);
     pg.geom=null;                       // already rectified; nothing to re-warp
     pg.joinedFrom=[a.id,b.id];
+    /* Carry the provenance through, so joining a join still shows every
+       original photo that ended up in the page. */
+    pg.sources=[...(a.sources||[a.name]),...(b.sources||[b.name])];
     /* Tone is applied to the FINAL page, once, so the two halves cannot end up
        with different curves and step at the seam. Inherit A's look. */
     pg.adj={ocr:Object.assign({},a.adj.ocr), read:Object.assign({},a.adj.read)};
@@ -2118,6 +2407,7 @@ const Crop={
     const pt=View.ptFromEvent(ev);
     const i=this.hit(pt);
     if(i<0) return;
+    History.push('move a corner','corner-'+p.id);
     this.drag=i; S.selCorner=i;
     $('#overlay').setPointerCapture(ev.pointerId);
     this.draw();
@@ -2145,6 +2435,7 @@ const Crop={
   },
   nudge(dx,dy){
     const p=activePage(); if(!p||S.selCorner<0) return;
+    History.push('nudge a corner','corner-'+p.id);
     const c=p.corners[S.selCorner];
     c.x=clamp(c.x+dx,0,p.raw.width); c.y=clamp(c.y+dy,0,p.raw.height);
     p.cornersVerified=true;
@@ -2169,6 +2460,7 @@ const Crop={
   async flatten(opts){
     opts=opts||{};
     const p=activePage(); if(!p) return;
+    History.push('flatten “'+p.name+'”');
     const {W,H}=this.outSize(p);
     if(W*H>52e6){ toast('That flattens to '+W+'×'+H+' px — over 52 MP. Tighten the corners.','err'); return; }
     await busy('Applying perspective transform',async()=>{
@@ -2206,6 +2498,7 @@ const Crop={
      straight from the source keeps them at zero resamples. */
   useAsIs(){
     const p=activePage(); if(!p) return;
+    History.push('use “'+p.name+'” as-is');
     p.geom=null;
     p.corners=insetCorners(p.raw,0);
     p.cornersVerified=true;
@@ -2213,20 +2506,36 @@ const Crop={
     p.thumb=thumbURL(p.raw);
     p.flattenedAt=Date.now();
     renderTray();
-    this.mode='result'; View.resetView(); this.draw();
-    toast(`Kept as-is at ${p.raw.width}×${p.raw.height} — no cropping, nothing resampled.`);
+    /* No result view here. Flatten shows you the outcome because the warp
+       changed something you need to check; use-as-is changed nothing, so
+       stopping to ask "happy with it?" confirms nothing. Go straight on. */
+    this.nextPage(`Kept as-is at ${p.raw.width}×${p.raw.height} — nothing resampled.`);
   },
 
-  nextPage(){
+  nextPage(prefix){
+    const lead=prefix?prefix+' ':'';
     const next=S.pages.find(x=>!x.flat);
     if(next){
       S.activeId=next.id; S.selCorner=-1; this.hover=-1; this.mode='edit';
       View.resetView(); renderTray(); drawStep();
-      toast(`Now on “${next.name}”.`);
+      toast(lead+`Now on “${next.name}”.`);
     }else{
-      toast('Every page is straightened.');
+      this.mode='edit';
+      toast(lead+'Every page is straightened.');
       goStep(STEP.ADJUST);
     }
+  },
+
+  /* Move between photos without leaving the step you are on. */
+  hop(dir){
+    if(!S.pages.length) return;
+    const i=S.pages.findIndex(x=>x.id===S.activeId);
+    const j=clamp((i<0?0:i)+dir,0,S.pages.length-1);
+    if(j===i) return;
+    const p=S.pages[j];
+    S.activeId=p.id; S.selCorner=-1; this.hover=-1; S.selRegion=-1;
+    this.mode=p.flat?'result':'edit';
+    View.resetView(); renderTray(); drawStep();
   }
 };
 
@@ -2509,30 +2818,151 @@ function boxBlur3(src,w,h,r,passes){
   return a;
 }
 
+/* Estimate the PAPER field, not simply the brightest thing present.
+
+   The old version took the max in each cell and called it paper. On text
+   that is right — paper is the brightest thing around. On a photograph or a
+   printed illustration the brightest pixel is part of the PICTURE, so
+   dividing by it strips the picture's own light and shade and leaves it
+   washed out. That is the whole of the "photos look bleached" problem, and
+   it is a wrong model rather than a wrong coefficient.
+
+   So: judge every cell on whether it plausibly contains paper — a bright
+   maximum AND a decent share of pixels sitting near that maximum, which is
+   what a flat sheet looks like and what continuous tone does not. Cells that
+   fail are not trusted; their value is filled in from the trusted cells
+   around them. Picture regions therefore get the paper correction belonging
+   to the paper AROUND them, and keep their own tonality.                */
+/* Estimate the PAPER field, and separately how much of each region is
+   picture rather than paper.
+
+   The original took the max in each cell and called it paper. On text that is
+   right — paper is the brightest thing around. On a photograph the brightest
+   pixel belongs to the PICTURE, so dividing by it strips the picture's own
+   light and shade and leaves it bleached. Wrong model, not a wrong constant.
+
+   Brightness alone cannot separate the two: a photo highlight and a patch of
+   shadowed paper sit at the same level, and rejecting one rejects the other.
+   What does separate them is STRUCTURE AT A COARSE SCALE. Paper stays flat
+   across many cells even when a gradient runs over it; a picture's cell
+   maxima jump about (sky, subject, shadow). So the discriminator is the local
+   spread of cell maxima over a 5x5 window of cells, not anything measured
+   inside a single cell — at cell scale every smooth gradient looks flat.
+
+   The picture map then scales the correction down where it applies, so one
+   page can hold a photograph and a column of prices and have both come out
+   right.                                                                */
 function illumField(d,w,h){
   const cell=Math.max(6,Math.round(Math.max(w,h)/FIELD_CELLS));
   const bw=Math.ceil(w/cell), bh=Math.ceil(h/cell);
-  const small=new Float32Array(bw*bh*3);
+  const NC=bw*bh;
+  const small=new Float32Array(NC*3);
+  const lum=new Float32Array(NC), near=new Float32Array(NC);
+
   for(let by=0;by<bh;by++) for(let bx=0;bx<bw;bx++){
     const y0=by*cell, y1=Math.min(h,y0+cell), x0=bx*cell, x1=Math.min(w,x0+cell);
-    let mr=0,mg=0,mb=0;
+    let mr=0,mg=0,mb=0,ml=0;
     for(let y=y0;y<y1;y++){
       let q=(y*w+x0)<<2;
       for(let x=x0;x<x1;x++,q+=4){
-        if(d[q]>mr)mr=d[q];
-        if(d[q+1]>mg)mg=d[q+1];
-        if(d[q+2]>mb)mb=d[q+2];
+        if(d[q]>mr)mr=d[q]; if(d[q+1]>mg)mg=d[q+1]; if(d[q+2]>mb)mb=d[q+2];
+        const L=0.299*d[q]+0.587*d[q+1]+0.114*d[q+2];
+        if(L>ml)ml=L;
       }
     }
-    const i=(by*bw+bx)*3; small[i]=mr; small[i+1]=mg; small[i+2]=mb;
+    let n=0,tot=0;
+    for(let y=y0;y<y1;y++){
+      let q=(y*w+x0)<<2;
+      for(let x=x0;x<x1;x++,q+=4){
+        const L=0.299*d[q]+0.587*d[q+1]+0.114*d[q+2];
+        if(L>=ml-14) n++;
+        tot++;
+      }
+    }
+    const i=by*bw+bx;
+    small[i*3]=mr; small[i*3+1]=mg; small[i*3+2]=mb;
+    lum[i]=ml; near[i]=tot?n/tot:0;
   }
-  return {f:boxBlur3(small,bw,bh,2,2), bw, bh, cell};
+
+  const sorted=Float32Array.from(lum).sort();
+  const gpaper=sorted[Math.min(NC-1,Math.floor(NC*0.90))]||255;
+
+  /* Coarse-scale structure: the spread of cell maxima in a 5x5 cell window.
+     Smooth paper, gradient and all, stays low. A picture does not. */
+  const R=2, pic=new Float32Array(NC);
+  for(let by=0;by<bh;by++) for(let bx=0;bx<bw;bx++){
+    let sum=0,sq=0,n=0;
+    for(let dy=-R;dy<=R;dy++) for(let dx=-R;dx<=R;dx++){
+      const y=by+dy,x=bx+dx;
+      if(y<0||y>=bh||x<0||x>=bw) continue;
+      const v=lum[y*bw+x]; sum+=v; sq+=v*v; n++;
+    }
+    const m=sum/n, sd=Math.sqrt(Math.max(0,sq/n-m*m));
+    // 0 at sd <= 4% of paper level, 1 at sd >= 14%
+    pic[by*bw+bx]=clamp((sd-gpaper*0.04)/(gpaper*0.10),0,1);
+  }
+
+  const known=new Uint8Array(NC);
+  let trust=0;
+  for(let i=0;i<NC;i++){
+    if(lum[i]>=gpaper*0.45 && pic[i]<0.5 && near[i]>=0.22){ known[i]=1; trust++; }
+  }
+  const paperFrac=NC?trust/NC:0;
+
+  if(!trust){ for(let i=0;i<NC;i++) known[i]=1; }   // full-bleed picture
+  else{
+    for(let it=0;it<40;it++){
+      const add=[];
+      for(let by=0;by<bh;by++) for(let bx=0;bx<bw;bx++){
+        const i=by*bw+bx;
+        if(known[i]) continue;
+        let n=0,sr=0,sg=0,sb=0;
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+          if(!dx&&!dy) continue;
+          const y=by+dy,x=bx+dx;
+          if(y<0||y>=bh||x<0||x>=bw) continue;
+          const j=y*bw+x;
+          if(!known[j]) continue;
+          sr+=small[j*3]; sg+=small[j*3+1]; sb+=small[j*3+2]; n++;
+        }
+        if(n) add.push([i,sr/n,sg/n,sb/n]);
+      }
+      if(!add.length) break;
+      for(const [i,r,g,b] of add){ small[i*3]=r; small[i*3+1]=g; small[i*3+2]=b; known[i]=1; }
+    }
+  }
+
+  // smooth the picture map so the correction eases in rather than stepping
+  let pm=Float32Array.from(pic), tmp=new Float32Array(NC);
+  for(let pass=0;pass<2;pass++){
+    for(let by=0;by<bh;by++) for(let bx=0;bx<bw;bx++){
+      let s=0,n=0;
+      for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+        const y=by+dy,x=bx+dx;
+        if(y<0||y>=bh||x<0||x>=bw) continue;
+        s+=pm[y*bw+x]; n++;
+      }
+      tmp[by*bw+bx]=s/n;
+    }
+    const t=pm; pm=tmp; tmp=t;
+  }
+  let picMean=0; for(let i=0;i<NC;i++) picMean+=pm[i];
+  picMean/=NC||1;
+
+  return {f:boxBlur3(small,bw,bh,3,2), pic:pm, bw, bh, cell, paperFrac, pictorial:picMean};
 }
 
 function flattenLight(id,strength){
   if(!(strength>0)) return id;
   const w=id.width, h=id.height, d=id.data, k=strength/100;
-  const {f,bw,bh,cell}=illumField(d,w,h);
+  const {f,pic,bw,bh,cell}=illumField(d,w,h);
+  /* PIC_EASE: how much of the correction is withheld where the page is
+     picture rather than paper. Even a correct paper field brightens a photo —
+     if the paper behind it was at 60%, everything there gets multiplied by
+     1.67 and the highlights clip. Withholding most of it there is the
+     "somewhere in the middle" that keeps a photograph looking like a
+     photograph while the price column still scans clean. */
+  const PIC_EASE=0.80;
   for(let y=0;y<h;y++){
     const gy=clamp(y/cell-0.5,0,bh-1);
     const y0=gy|0, y1=Math.min(bh-1,y0+1), fy=gy-y0;
@@ -2540,12 +2970,18 @@ function flattenLight(id,strength){
     for(let x=0;x<w;x++,q+=4){
       const gx=clamp(x/cell-0.5,0,bw-1);
       const x0=gx|0, x1=Math.min(bw-1,x0+1), fx=gx-x0;
+      // bilinear picture-ness, so the easing is smooth
+      const pa=pic[y0*bw+x0]+(pic[y0*bw+x1]-pic[y0*bw+x0])*fx;
+      const pb=pic[y1*bw+x0]+(pic[y1*bw+x1]-pic[y1*bw+x0])*fx;
+      const pv=pa+(pb-pa)*fy;
+      const kk=k*(1-pv*PIC_EASE);
+      if(kk<=0.002) continue;
       for(let ch=0;ch<3;ch++){
         const a=f[(y0*bw+x0)*3+ch]+(f[(y0*bw+x1)*3+ch]-f[(y0*bw+x0)*3+ch])*fx;
         const b=f[(y1*bw+x0)*3+ch]+(f[(y1*bw+x1)*3+ch]-f[(y1*bw+x0)*3+ch])*fx;
         const bg=Math.max(24,a+(b-a)*fy);
         const norm=d[q+ch]*250/bg;
-        const v=d[q+ch]+(norm-d[q+ch])*k;
+        const v=d[q+ch]+(norm-d[q+ch])*kk;
         d[q+ch]=v<0?0:v>255?255:v;
       }
     }
@@ -2727,11 +3163,24 @@ function claheInPlace(c){
   return c;
 }
 
-function processCanvas(src,a,refW){
+function processCanvas(src,a0,refW){
   /* refW = the resolution these adj values were authored against (the flat
      width). Scaling spatial kernels by src.width/refW is what makes the
      1400px proxy preview actually predict the full-res export. */
   const k=refW?src.width/refW:1;
+  /* strength scales EVERYTHING, brightness included. Leaving brightness out
+     was a mistake: measured on a photo cover it was the single largest cause
+     of washout — lifting the whole region by ~38 levels and the blacks from
+     51 to 89, with no added contrast — and being outside the multiplier it
+     did that identically at every strength. A gentle treatment has to mean
+     gentle everything. */
+  const st=(a0.strength==null?1:a0.strength);
+  const a=st===1?a0:Object.assign({},a0,{
+    flat:clamp(a0.flat*st,0,100), con:clamp(a0.con*st,-100,100),
+    bri :clamp(a0.bri*st,-100,100),
+    sha :clamp(a0.sha*st,-100,100), hig:clamp(a0.hig*st,-100,100),
+    shp :clamp(a0.shp*st,0,100)
+  });
   const c=copyCanvas(src), g=ctx2d(c);
   if(a.flat>0||a.bri||a.con||a.sha||a.hig||a.shp){
     let id=g.getImageData(0,0,c.width,c.height);
@@ -2766,68 +3215,110 @@ function processCanvas(src,a,refW){
 
    Reported back to the user so the numbers are inspectable rather than
    magic. Mode is grey: OCR reads thin strokes better than hard mono. */
-function histStats(d,N){
-  const hist=new Uint32Array(256);
-  for(let i=0,q=0;i<N;i++,q+=4) hist[(0.299*d[q]+0.587*d[q+1]+0.114*d[q+2])|0]++;
-  const pct=f=>{ let acc=0, t=N*f; for(let v=0;v<256;v++){ acc+=hist[v]; if(acc>=t) return v; } return 255; };
-  let blown=0; for(let v=250;v<256;v++) blown+=hist[v];
-  const p2=pct(0.02), p50=pct(0.50), p98=pct(0.98);
-  return {p2,p50,p98,span:p98-p2,blown:blown/N};
+/* ── Page measurement ─────────────────────────────────────────────
+   Ink and paper are measured as SEPARATE populations, using the same
+   local-mean mask the section finder uses.
+
+   Whole-page percentiles cannot tell the two apart, and that broke the
+   previous version in three places: it read the darkest 2% as "shadow"
+   when on a menu the darkest 2% is the TEXT (so it lifted the ink, hardest
+   when the ink was darkest); it judged brightness from the median, which
+   after flattening is always paper at ~240, so the term never fired at
+   all; and its focus proxy had almost no dynamic range on real pages.  */
+function popStats(gray,ink,N){
+  const pH=new Uint32Array(256), iH=new Uint32Array(256);
+  let pN=0,iN=0,pSum=0,iSum=0;
+  for(let i=0;i<N;i++){
+    const v=gray[i]<0?0:(gray[i]>255?255:gray[i]|0);
+    if(ink[i]){ iH[v]++; iN++; iSum+=v; } else { pH[v]++; pN++; pSum+=v; }
+  }
+  const pct=(h,n,f)=>{ let acc=0,t=n*f; for(let v=0;v<256;v++){ acc+=h[v]; if(acc>=t) return v; } return 255; };
+  let blown=0; for(let v=250;v<256;v++) blown+=pH[v];
+  const paperMean=pN?pSum/pN:255, inkMean=iN?iSum/iN:0;
+  let sd=0; if(pN){ for(let v=0;v<256;v++) sd+=pH[v]*(v-paperMean)*(v-paperMean); sd=Math.sqrt(sd/pN); }
+  return {
+    paperMean, inkMean,
+    paperLow : pN?pct(pH,pN,0.05):255,   // shadow that survived flattening
+    paperSD  : sd,
+    blown    : pN?blown/pN:0,            // glare, as a fraction of PAPER
+    coverage : N?iN/N:0,
+    separation: (pN&&iN)?(paperMean-inkMean):0
+  };
+}
+
+/* Sharpness measured where it actually lives: across ink/paper boundaries.
+   Normalised by separation so a faded page is not mistaken for a blurry
+   one. A hard edge lands near 1.0, a soft one nearer 0.4. */
+function edgeSharpness(gray,ink,w,h,separation){
+  if(separation<10) return 1;
+  let sum=0,n=0;
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+    const i=y*w+x;
+    if(!ink[i]) continue;
+    if(ink[i-1]&&ink[i+1]&&ink[i-w]&&ink[i+w]) continue;   // interior, not a boundary
+    const gx=gray[i+1]-gray[i-1], gy=gray[i+w]-gray[i-w];
+    sum+=Math.sqrt(gx*gx+gy*gy); n++;
+  }
+  return n? clamp((sum/n)/separation,0,3) : 1;
 }
 
 function measurePage(src){
-  const w=src.width,h=src.height;
+  const w=src.width,h=src.height,N=w*h;
   const d=ctx2d(src).getImageData(0,0,w,h).data;
-  const N=w*h;
-  const st=histStats(d,N);
+  const gray=new Float32Array(N);
+  for(let i=0,q=0;i<N;i++,q+=4) gray[i]=0.299*d[q]+0.587*d[q+1]+0.114*d[q+2];
 
-  // Illumination spread: how far does paper-white drift across the page?
-  const {f,bw,bh}=illumField(d,w,h);
+  const ink=localInkMask(src,sliceBlockFor(src),8);
+  const st=popStats(gray,ink,N);
+  st.ink=ink; st.gray=gray; st.w=w; st.h=h; st.N=N;
+
+  // Illumination spread — how far paper-white drifts across the page.
+  const fld=illumField(d,w,h);
+  const {f,bw,bh}=fld;
   let fmin=1e9,fmax=-1e9;
   for(let i=0;i<bw*bh;i++){
     const L=0.299*f[i*3]+0.587*f[i*3+1]+0.114*f[i*3+2];
     if(L<fmin)fmin=L; if(L>fmax)fmax=L;
   }
   st.gradient=fmax>1?clamp((fmax-fmin)/fmax,0,1):0;
-
-  // Focus proxy: Laplacian variance, stride-sampled.
-  const gray=new Float32Array(N);
-  for(let i=0,q=0;i<N;i++,q+=4) gray[i]=0.299*d[q]+0.587*d[q+1]+0.114*d[q+2];
-  let lsum=0,lsq=0,lc=0;
-  for(let y=1;y<h-1;y+=2) for(let x=1;x<w-1;x+=2){
-    const i=y*w+x;
-    const L=4*gray[i]-gray[i-1]-gray[i+1]-gray[i-w]-gray[i+w];
-    lsum+=L; lsq+=L*L; lc++;
-  }
-  const lvar=lc?(lsq/lc-(lsum/lc)**2):0;
-  /* Normalise edge energy by tonal span, otherwise a merely FADED page
-     (in focus, low contrast) is mistaken for a BLURRY one and gets
-     sharpened when what it actually needs is contrast. */
-  st.focus=Math.sqrt(Math.max(0,lvar))/Math.max(20,st.span);
+  st.pictorial=fld.pictorial;      // how much of the page is continuous tone
+  st.paperFrac=fld.paperFrac;
+  st.edge=edgeSharpness(gray,ink,w,h,st.separation);
   return st;
 }
 
 function autoAdjust(src){
   const raw=measurePage(src);
-  const a=Object.assign({},DEFAULT_ADJ,{mode:'gray'});
+  const a=Object.assign({},DEFAULT_ADJ);
 
-  // A lighting gradient is the single biggest OCR killer, so lean in hard.
+  // A lighting gradient is the biggest single readability killer.
   a.flat=Math.round(clamp(35+raw.gradient*110,35,100));
 
-  /* Re-measure on a flattened copy. flattenLight already drives paper toward
-     250, so contrast and brightness judged from the RAW histogram would
-     double-correct — that was over-darkening clean pages by 10. */
-  const w=src.width,h=src.height;
-  const id=ctx2d(src).getImageData(0,0,w,h);
+  /* Re-measure on a flattened copy, reusing the SAME ink mask — flattening
+     changes levels, not which pixels are text. */
+  const id=ctx2d(src).getImageData(0,0,raw.w,raw.h);
   flattenLight(id,a.flat);
-  const post=histStats(id.data,w*h);
+  const g2=new Float32Array(raw.N);
+  for(let i=0,q=0;i<raw.N;i++,q+=4) g2[i]=0.299*id.data[q]+0.587*id.data[q+1]+0.114*id.data[q+2];
+  const post=popStats(g2,raw.ink,raw.N);
 
-  a.con=Math.round(clamp((165-post.span)*0.42,0,38));
-  a.bri=Math.round(clamp((150-post.p50)*0.20,0,18));   // lift only, never darken
-  a.hig=Math.round(clamp(-6-post.blown*160,-26,0));    // recover glare, don't brighten into it
-  a.sha=Math.round(clamp((70-post.p2)*0.12,0,14));
-  // focus ~0.2 = soft, ~1.7 = crisp
-  a.shp=Math.round(clamp(52-(raw.focus-0.2)*25.3,14,52));
+  // Contrast from the real ink/paper gap, not a percentile spread.
+  a.con=Math.round(clamp((175-post.separation)*0.30,0,38));
+  /* Brightness and shadow-lift both read the PAPER population, and on a page
+     full of pictures that population is unreliable — the ink mask counts dark
+     photo areas as ink and dim photo areas as paper, dragging the paper mean
+     down and making both terms fire hard on a page that needed neither. They
+     are also the two terms that lift blacks, which is precisely what "washed
+     out" looks like. So damp them by how pictorial the page is. */
+  const trust=1-clamp(raw.pictorial*1.6,0,0.85);
+  a.bri=Math.round(clamp((246-post.paperMean)*0.35,0,18)*trust);
+  a.sha=Math.round(clamp((post.paperMean-post.paperLow-10)*0.35,0,14)*trust);
+  // Glare recovery, as a fraction of paper.
+  a.hig=Math.round(clamp(-4-post.blown*130,-26,0));
+  /* Sharpen from edge transition width. Measured range on real blur is
+     about 1.25 (crisp) down to 0.6 (3 px of blur), so the map is pinned to
+     those two points rather than to guessed coefficients. */
+  a.shp=Math.round(clamp(77-raw.edge*50,14,52));
 
   /* Colour, not grey. A fully normalised page looks washed out and unsharp
      halos are ugly to read, so ease off both from where a pure
@@ -2835,6 +3326,22 @@ function autoAdjust(src){
   a.mode='color';
   a.flat=Math.round(a.flat*0.80);
   a.shp =Math.round(a.shp*0.75);
+
+  /* Pick the strength from how much of the page is picture rather than paper.
+     A cover full of photographs wants a light touch — contrast and sharpening
+     both damage continuous tone — while a page of prices wants the lot. The
+     spatial picture map already protects photographs inside flatten; this
+     eases the GLOBAL terms, which it cannot reach. */
+  /* Thresholds calibrated against the three page types these menus actually
+     have. Measured pictorial: a page of prices ~0%, a page with one or two
+     illustrations ~13%, a cover that is roughly half photograph ~32%. The map
+     is smoothed and does not reach 1.0 everywhere, so a half-photo page reads
+     around a third — the thresholds are set to the readings, not to the
+     fraction of the page a human would call "picture". */
+  a.strength = raw.pictorial>0.28 ? 0.25    // cover, mostly photographs
+             : raw.pictorial>0.10 ? 0.5     // a page with an illustration or two
+             : 1;                           // text and prices
+  delete raw.ink; delete raw.gray;          // don't retain the buffers
   return {adj:a, m:raw, post};
 }
 
@@ -2874,7 +3381,7 @@ const Tone={
     return locked;
   },
 
-  key(a){ return [a.mode,a.flat,a.bri,a.con,a.sha,a.hig,a.shp,a.thresh,a.block,a.cconst,a.despeckle].join('|'); },
+  key(a){ return [a.mode,a.strength,a.flat,a.bri,a.con,a.sha,a.hig,a.shp,a.thresh,a.block,a.cconst,a.despeckle].join('|'); },
 
   ensurePreview(p){
     const k=this.key(curAdj(p));
@@ -2895,6 +3402,8 @@ const Tone={
     drawRulers(g);
     const modeLabel=$('#sel-mode').selectedOptions[0].textContent.split('—')[0].trim();
     badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · ${before?'<b style="color:#a1660b">BEFORE — untouched</b>':(isTouched(p)?'<b>after</b> · '+modeLabel:'not adjusted yet')}`
+        + (curAdj(p).strength!==1?` · <b>${
+            curAdj(p).strength<=0.25?'extra gentle':curAdj(p).strength<1?'gentle':'strong'}</b>`:'')
         + (this.locked()?' · <b style="color:#ffc247">locked until sliced</b>':'')
         + ` · preview at ${p._proxy.width}px`);
   },
@@ -2908,6 +3417,8 @@ const Tone={
     const p=activePage(); if(!p) return;
     const a=curAdj(p);
     $('#sel-mode').value=a.mode;
+    const stv=(a.strength==null?1:a.strength);
+    $$('#seg-strength button').forEach(b=>b.classList.toggle('on',+b.dataset.strength===stv));
     $('#s-flat').value=a.flat; $('#v-flat').textContent=a.flat;
     $('#s-bri').value=a.bri; $('#s-con').value=a.con; $('#s-sha').value=a.sha;
     $('#s-hig').value=a.hig; $('#s-shp').value=a.shp;
@@ -2927,6 +3438,7 @@ const Tone={
 
   read(){
     const p=activePage(); if(!p||this.locked()) return;
+    History.push('adjust “'+p.name+'”','tone-'+p.id);
     p.tuned=true;
     const a=curAdj(p);
     a.mode=$('#sel-mode').value;
@@ -2941,6 +3453,7 @@ const Tone={
 
   preset(name){
     const p=activePage(); if(!p||this.locked()) return;
+    History.push('preset “'+name+'”');
     p.tuned=true;
     if(name==='reset') p.adj=Object.assign({},DEFAULT_ADJ);
     else Object.assign(curAdj(p),DEFAULT_ADJ,PRESETS[name]);
@@ -2952,6 +3465,7 @@ const Tone={
      be lit completely differently. */
   async auto(){
     if(this.locked()) return;
+    History.push('auto-enhance');
     const pages=S.pages.filter(x=>x.flat);
     if(!pages.length) return;
     let last=null;
@@ -2969,7 +3483,9 @@ const Tone={
     if(!last) last=autoAdjust((activePage()||pages[0])._proxy);
     renderTray(); this.syncUI(); this.draw();
     const a=activePage()?curAdj(activePage()):last.adj;
+    const gentle=pages.filter(x=>curAdj(x).strength<1).length;
     toast(`Auto-enhanced ${pages.length} image${pages.length>1?'s':''}, each measured on its own.`
+        + (gentle?` ${gentle} looked picture-heavy and got a lighter touch.`:'')
         + ` This one: flatten ${a.flat}, contrast ${a.con}, sharpen ${a.shp}.`);
   },
 
@@ -2977,6 +3493,7 @@ const Tone={
      geometry and live on p.flat — nothing here touches them. */
   resetOne(){
     const p=activePage(); if(!p||this.locked()) return;
+    History.push('reset “'+p.name+'”');
     p.adj=Object.assign({},DEFAULT_ADJ);
     p.tuned=false;
     invalidate(p);
@@ -2986,6 +3503,7 @@ const Tone={
   },
   resetAll(){
     if(this.locked()) return;
+    History.push('reset all images');
     const pages=S.pages.filter(x=>x.flat);
     if(!pages.length) return;
     pages.forEach(x=>{
@@ -3548,6 +4066,7 @@ const Exporter={
       `total pixels <b>${(px/1e6).toFixed(1)} MP</b>`+
       (S.pages.some(x=>x.flat&&!x.include)?`<br><span style="color:#8d95a5">`
         +`${S.pages.filter(x=>x.flat&&!x.include).length} page(s) held back</span>`:'')+
+      sessionLine()+
       (pages.filter(pg=>!pg.cornersVerified).length?`<br><span style="color:#ffc247">`
         +`${pages.filter(pg=>!pg.cornersVerified).length} flattened from auto-detected corners — not checked</span>`:'')+
       (S.pages.length-pages.length?`<br><span style="color:#ff5f5f">${S.pages.length-pages.length} page(s) not yet flattened</span>`:'');
@@ -3626,7 +4145,7 @@ const Exporter={
     await busy('Building PDF',async()=>{ blob=await this.renderPdfBlob(pages,q,maxDim,fmt); });
     if(!blob) return;
     download(blob,`${bundleStem()}_menu_${stamp()}.pdf`);
-    toast(`PDF exported — ${pages.length} page${pages.length>1?'s':''}.`);
+    toast(`PDF exported — ${pages.length} page${pages.length>1?'s':''}.`+fortune());
   },
 
   /* Two archives with genuinely different jobs, so they are shaped
@@ -3747,7 +4266,7 @@ separately and are meant for people, not for parsing.
       }
       download(blob,`${bundleStem()}_${mode==='ocr'?'ocr':'images'}_${stamp()}.zip`);
     });
-    toast(`${mode==='ocr'?'OCR set':'Images'} exported — ${pages.length} image${pages.length===1?'':'s'}.`);
+    toast(`${mode==='ocr'?'OCR set':'Images'} exported — ${pages.length} image${pages.length===1?'':'s'}.`+fortune());
   }
 };
 /* manifest.json is better provenance than any filename, but a
@@ -3770,11 +4289,28 @@ function ocrPages(){
    made the two sets different. */
 function hasJoins(){ return S.pages.some(p=>p.joinedFrom); }
 
+/* Straightening and joining are invisible work — nobody sees the twenty
+   corner drags behind a tidy PDF. This puts a number on the session. */
+function sessionLine(){
+  if(!S.startedAt) return '';
+  const straightened=S.pages.filter(p=>p.flat).length;
+  const joins=S.pages.filter(p=>p.joinedFrom).length;
+  const secs=Math.round((Date.now()-S.startedAt)/1000);
+  const t=secs<60?`${secs}s`:`${Math.floor(secs/60)}m ${secs%60}s`;
+  return `<br><span style="color:#96938c">this session \u00b7 ${straightened} straightened`
+       + (joins?` \u00b7 ${joins} join${joins>1?'s':''}`:'')
+       + ` \u00b7 ${t}</span>`;
+}
+
 function bundleStem(){
   const first=exportPages()[0]||S.pages.find(pg=>pg.flat)||S.pages[0];
   const raw=(first?first.name:'menu').replace(/[-_ ]*(front|back|cover|p?0*1|page ?1)$/i,'');
   return safeName(raw)||'menu';
 }
+/* One line, only on export — the single moment in this workflow that
+   already feels like finishing. */
+function fortune(){ return CONFIG.playful?'\n\u2728 '+pick(FORTUNES):''; }
+
 function stamp(){
   const d=new Date();
   return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
@@ -3837,6 +4373,7 @@ function renderTray(){
       }
       if(ev.target.classList.contains('pick')){
         ev.stopPropagation();
+        History.push((p.include?'hold back':'include')+' “'+p.name+'”');
         p.include=!p.include;
         renderTray();
         if(S.step===STEP.EXPORT) Exporter.draw();
@@ -3928,7 +4465,7 @@ function updateStepStates(){
   if(jb){
     const canJoin=STEP_META[STEP.JOIN].need(p);
     jb.disabled=!canJoin;
-    jb.textContent=canJoin?'Join / merge photos':'Join — needs two straightened pages';
+    jb.innerHTML=canJoin?'4 &middot; Join / merge photos':'4 &middot; Join — needs two straightened pages';
   }
   $$('.step').forEach(b=>{
     const name=b.dataset.step;
@@ -3970,9 +4507,26 @@ function redrawStage(){
    their own zoom. One HUD drives whichever is showing. */
 /* One surface now — every step draws into the same View, so zoom and pan
    behave identically throughout instead of the board being a special case. */
+/* One card carries the version, the build date and the shortcut list.
+   Long-press the logo, or press ? — the same card either way, so there is
+   only one place to look. */
+function openAbout(){
+  $('#about-name').textContent=APP.name;
+  $('#about-ver').textContent=`v${APP.version} · built ${APP.built}`;
+  $('#about-libs').textContent=[
+    LIB.jspdf?'jsPDF 2.5.1':'built-in PDF writer',
+    LIB.jszip?'JSZip 3.10.1':'built-in ZIP writer',
+    cvReady()?'OpenCV.js 4.10':'built-in transform (OpenCV off)'
+  ].join('  ·  ');
+  $('#about').hidden=false;
+}
+function closeAbout(){ $('#about').hidden=true; }
+
 function syncHUD(){
-  $('#zoomhud').classList.toggle('on',!!View.src&&S.step!==STEP.PAGES);
+  const live=!!View.src&&S.step!==STEP.PAGES;
+  $('#zoomhud').classList.toggle('on',live);
   $('#z-pct').textContent=Math.round(View.zoom*100)+'%';
+  $('#z-deep').classList.toggle('on',CONFIG.playful&&live&&View.zoom>8);
 }
 function hudZoom(f,cx,cy){
   if(!View.src) return;
@@ -3994,8 +4548,8 @@ function drawStep(){
   if(S.step===STEP.PAGES){ View.show(null); Pages.draw(); syncHUD(); return; }
   if(!p&&S.step!==STEP.JOIN){
     View.show(null);
-    $('#stage-empty').innerHTML='<div><div class="big">Nothing on the copy stand</div>'
-      +'<div class="sub">Add photos in the panel on the left</div></div>';
+    const [big,sub]=CONFIG.playful?EMPTY_PICK:EMPTY_LINES[0];
+    $('#stage-empty').innerHTML=`<div><div class="big">${big}</div><div class="sub">${sub}</div></div>`;
     $('#stage-empty').style.display='grid';
   }
   else if(S.step===STEP.SCAN){ Crop.refreshButtons(); Crop.draw(); }
@@ -4016,6 +4570,20 @@ function bindVal(id,out,fmt,onChange){
 }
 
 function wire(){
+  /* Long-press the logo for the About card. It carries the exact version and
+     build date, which is the quickest way to tell whether the copy you are
+     looking at is the one that was deployed. */
+  (function(){
+    const brand=$('.brand'), card=$('#about');
+    let timer=null;
+    brand.addEventListener('pointerdown',()=>{ timer=setTimeout(openAbout,600); });
+    ['pointerup','pointerleave','pointercancel'].forEach(e=>
+      brand.addEventListener(e,()=>clearTimeout(timer)));
+    $('#about-close').addEventListener('click',closeAbout);
+    card.addEventListener('click',ev=>{ if(ev.target===card) closeAbout(); });
+    document.addEventListener('keydown',ev=>{ if(ev.key==='Escape') closeAbout(); });
+  })();
+
   /* files */
   const drop=$('#drop'), file=$('#file');
   drop.addEventListener('click',()=>file.click());
@@ -4051,10 +4619,12 @@ function wire(){
   if(!CONFIG.autoDetect){ $('#btn-detect').style.display='none'; $('#det-settings').style.display='none'; }
   $('#btn-corners-full').addEventListener('click',()=>{
     const p=activePage(); if(!p) return;
+    History.push('reset the corners');
     p.corners=insetCorners(p.raw,0); S.selCorner=-1; Crop.draw();
   });
   $('#btn-corners-inset').addEventListener('click',()=>{
     const p=activePage(); if(!p) return;
+    History.push('reset the corners');
     p.corners=insetCorners(p.raw,0.06); S.selCorner=-1; Crop.draw();
   });
   bindVal('#s-canny','#v-canny');
@@ -4084,6 +4654,14 @@ function wire(){
   $('#btn-reset-one').addEventListener('click',()=>Tone.resetOne());
   $('#btn-reset-all').addEventListener('click',()=>Tone.resetAll());
   $('#btn-compare').addEventListener('click',()=>Tone.toggleCompare());
+  $$('#seg-strength button').forEach(b=>b.addEventListener('click',()=>{
+    const p=activePage(); if(!p||Tone.locked()) return;
+    History.push('strength on “'+p.name+'”');
+    curAdj(p).strength=+b.dataset.strength;
+    p.tuned=true; invalidate(p);
+    p.thumb=thumbURL(processCanvas(p._proxy,curAdj(p),p.flat.width));
+    renderTray(); Tone.syncUI(); Tone.draw();
+  }));
   $('#btn-otsu').addEventListener('click',()=>Tone.pickOtsu());
   $('#btn-to-export').addEventListener('click',()=>goStep(STEP.EXPORT));
   $('#btn-to-join').addEventListener('click',()=>goStep(STEP.JOIN));
@@ -4111,11 +4689,13 @@ function wire(){
     goStep(STEP.SCAN);
   });
   $('#btn-order-name').addEventListener('click',()=>{
+    History.push('sort by filename');
     S.pages.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
     Join.userPicked=false; Join.A=Join.B=null;
     Pages.draw(); renderTray(); toast('Sorted by filename.');
   });
   $('#btn-order-rev').addEventListener('click',()=>{
+    History.push('reverse the order');
     S.pages.reverse(); Join.userPicked=false; Join.A=Join.B=null;
     Pages.draw(); renderTray(); toast('Order reversed.');
   });
@@ -4129,7 +4709,8 @@ function wire(){
   $('#btn-zip-all').addEventListener('click',()=>Exporter.zip({mode:'images'}));
   $('#btn-zip-ocr').addEventListener('click',()=>Exporter.zip({mode:'ocr'}));
   $('#c-lossless').addEventListener('change',()=>Exporter.estimate());
-  const pick=fn=>{ S.pages.forEach(p=>{ if(p.flat) p.include=fn(p); }); renderTray(); Exporter.draw(); };
+  const pick=fn=>{ History.push('change what is exported');
+    S.pages.forEach(p=>{ if(p.flat) p.include=fn(p); }); renderTray(); Exporter.draw(); };
   $('#btn-pick-all').addEventListener('click',()=>pick(()=>true));
   $('#btn-pick-none').addEventListener('click',()=>pick(()=>false));
   $('#btn-pick-joined').addEventListener('click',()=>{
@@ -4215,8 +4796,15 @@ function wire(){
   /* Rotate the SOURCE canvas and map the corners with it, so the turn is
      visible the moment you click instead of waiting for Flatten. rotate90 is
      an exact quarter turn, so this resamples nothing. */
+  let turnRun=0, turnLast=0, turnDir=0;
   const turn=async dir=>{
     const p=activePage(); if(!p) return;
+    /* Four turns the same way lands you back where you started. Someone who
+       did that deserves to see the page actually go round. */
+    const now=Date.now();
+    turnRun = (now-turnLast<2500 && dir===turnDir) ? turnRun+1 : 1;
+    turnLast=now; turnDir=dir;
+    History.push('rotate “'+p.name+'”');
     Crop.mode='edit';
     if(p.flat&&p.regions.length&&
        !confirm('Turning this page clears its '+p.regions.length+' crop region(s). Continue?')) return;
@@ -4230,13 +4818,64 @@ function wire(){
     // a page already flattened has a stale result, so redo it straight away
     if(p.flat) await Crop.flatten({stay:true});
     renderTray();
+    if(CONFIG.playful && turnRun>=4 && p.turns===0){
+      turnRun=0;
+      const st=$('#stage');
+      st.classList.add('spin');
+      setTimeout(()=>st.classList.remove('spin'),750);
+      toast('All the way round. Back where you started.');
+    }
   };
   $('#btn-turn').addEventListener('click',()=>turn(1));
   $('#btn-turn-back').addEventListener('click',()=>turn(-1));
 
   /* keyboard */
   document.addEventListener('keydown',ev=>{
+    const z=(ev.key==='z'||ev.key==='Z'), y=(ev.key==='y'||ev.key==='Y');
+    if((ev.metaKey||ev.ctrlKey)&&(z||y)){
+      ev.preventDefault();
+      if(y||ev.shiftKey) History.redo(); else History.undo();
+      return;
+    }
     if(/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    if(ev.metaKey||ev.ctrlKey||ev.altKey) return;
+
+    if(ev.key==='?'){ ev.preventDefault(); openAbout(); return; }
+
+    /* Enter is the primary action for the step you are on. On Straighten that
+       makes the whole loop Enter, Enter, Enter: flatten, next photo, flatten.
+       Deliberately unbound on Adjust (two equally valid exits) and on Export
+       (nothing there should fire by accident). */
+    if(ev.key==='Enter'){
+      const p=activePage();
+      if(S.step===STEP.PAGES&&S.pages.length){ ev.preventDefault(); $('#btn-to-scan').click(); return; }
+      if(S.step===STEP.SCAN&&p){
+        ev.preventDefault();
+        if(Crop.mode==='result'&&p.flat) Crop.nextPage(); else Crop.flatten();
+        return;
+      }
+      if(S.step===STEP.JOIN&&!$('#btn-join').disabled){ ev.preventDefault(); Join.commit(); return; }
+      return;
+    }
+    if(ev.key==='['){ ev.preventDefault(); Crop.hop(-1); return; }
+    if(ev.key===']'){ ev.preventDefault(); Crop.hop(1);  return; }
+    if((ev.key==='u'||ev.key==='U')&&S.step===STEP.SCAN){
+      ev.preventDefault(); if(!$('#btn-asis').disabled) Crop.useAsIs(); return;
+    }
+    if(ev.key===','&&S.step===STEP.SCAN){ ev.preventDefault(); $('#btn-turn-back').click(); return; }
+    if(ev.key==='.'&&S.step===STEP.SCAN){ ev.preventDefault(); $('#btn-turn').click(); return; }
+    if((ev.key==='a'||ev.key==='A')&&S.step===STEP.ADJUST){
+      ev.preventDefault(); if(!$('#btn-auto-enhance').disabled) Tone.auto(); return;
+    }
+    if((ev.key==='r'||ev.key==='R')&&S.step===STEP.ADJUST){
+      ev.preventDefault(); Tone.resetOne(); return;
+    }
+    if((ev.key==='d'||ev.key==='D')&&S.step===STEP.JOIN){
+      ev.preventDefault();
+      const c=$('#c-diff-join'); c.checked=!c.checked;
+      c.dispatchEvent(new Event('change',{bubbles:true}));
+      return;
+    }
     if(ev.code==='Space'){
       ev.preventDefault();                       // stop the page scrolling
       if(!S.spaceDown){ S.spaceDown=true; $('#overlay').classList.add('grab'); $('#overlay').style.cursor=''; }
