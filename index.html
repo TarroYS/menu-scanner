@@ -460,6 +460,18 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
 .pg.drop-after{box-shadow:3px 0 0 var(--registration)}
 .pg[draggable=true]{cursor:grab}
 .pg.isjoin .im{border-color:var(--registration)}
+.pg .jslot{
+  position:absolute;top:3px;left:22px;min-width:15px;height:15px;border-radius:3px;
+  background:var(--crop);color:#fff;font-family:var(--mono);font-size:10px;font-weight:700;
+  display:grid;place-items:center;line-height:1;padding:0 3px;
+}
+.slotrow{display:flex;gap:6px;align-items:center}
+.slotrow select{flex:1;min-width:0}
+.slotrow .drop-slot{
+  flex:0 0 auto;width:26px;height:30px;background:var(--press);border:1px solid var(--line);
+  border-radius:var(--r);color:var(--graphite);cursor:pointer;font-size:14px;line-height:1;
+}
+.slotrow .drop-slot:hover{color:var(--danger);border-color:#b3261e55}
 .pg .jtag{
   position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
   background:var(--accent);color:#fff;font-family:var(--mono);font-size:8px;
@@ -843,14 +855,10 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
     <section class="pane" data-pane="join">
       <div class="eyebrow">Which two halves</div>
       <div class="stack">
-        <label class="field" style="margin-bottom:6px">
-          <span class="lab"><span>Join — page A</span><span class="val">stays put</span></span>
-          <select id="sel-a"></select>
-        </label>
-        <label class="field">
-          <span class="lab"><span>Join — page B</span><span class="val">slides onto A</span></span>
-          <select id="sel-b"></select>
-        </label>
+        <div id="join-slots"></div>
+        <button class="btn sm wide" id="btn-add-slot" style="margin-top:4px">+ Add another page</button>
+        <div class="note" id="join-dupe" style="display:none;margin-top:9px;border-left-color:var(--warn)">The same page is selected twice.</div>
+        <div class="exp-why">Or <b>click the pages in the strip below</b> — each click fills the next slot.</div>
       </div>
 
       <div class="grp">
@@ -867,9 +875,16 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         <div class="stack">
           <button class="btn primary wide" id="btn-find-seam">Find the seam automatically</button>
           <label class="check"><input type="checkbox" id="c-diff-join"> Difference view — aligned goes black</label>
+          <button class="btn sm wide" id="btn-snap" style="margin-top:8px">Snap flush — remove any blank strip</button>
         </div>
         <div class="note" style="margin-top:9px"><b>Drag anywhere on the page</b> to slide B over A. <kbd>←↑↓→</kbd> nudges 1&nbsp;px, <kbd>Shift</kbd> 10&nbsp;px.<br><br>Tick <b>Difference view</b>, scroll to zoom into the seam, and nudge until the overlapping strip goes black. Black means the two halves match exactly.</div>
       </details>
+
+      <div class="grp">
+        <div class="eyebrow">Order</div>
+        <div class="list" id="join-order"></div>
+        <div class="exp-why">A stays fixed; the rest slide onto it. Click one to move it with the arrow keys.</div>
+      </div>
 
       <details class="adv">
         <summary>Seam details</summary>
@@ -1088,7 +1103,7 @@ const EMPTY_PICK=pick(EMPTY_LINES);
 
 const APP={
   name:'Menu Scan',
-  version:'1.8',
+  version:'1.9',
   built:'2026-08-26',
   tagline:'photos to PDF & OCR'
 };
@@ -1512,7 +1527,7 @@ const History={
       return p;
     });
     S.activeId=st.activeId;
-    Join.A=Join.B=null; Join.aId=Join.bId=null;
+    Join.parts=null; Join.slots=[null,null];
     S.selCorner=-1; S.selRegion=-1; Crop.hover=-1;
     const p=activePage();
     Crop.mode=(p&&p.flat)?'result':'edit';
@@ -1564,7 +1579,7 @@ function isTouched(p){
 function setFlat(p,canvas){
   p.flat=canvas;
   // a re-flatten (turn, deskew, re-crop) makes any prepared join stale
-  if(Join.aId===p.id||Join.bId===p.id) Join.A=Join.B=null;
+  if(Join.slots.includes(p.id)) Join.parts=null;
   p._proxy=scaleCanvas(canvas,1400);
   invalidate(p);
   p.regions=p.regions.filter(r=>r.x<canvas.width&&r.y<canvas.height);
@@ -1800,12 +1815,32 @@ const Inbox={
     if(added.length){
       if(!S.startedAt) S.startedAt=Date.now();
       S.activeId=added[0].id; S.selCorner=-1;
-      Join.userPicked=false; Join.A=Join.B=null;
+      Join.userPicked=false; Join.parts=null;
       renderTray(); goStep(STEP.PAGES); Pages.draw();
       toast(`${added.length} photo${added.length>1?'s':''} added. Drag them into order, then straighten.`);
     }
   }
 };
+
+/* Force the joined edge to match EXACTLY.
+
+   renderFlatAt scales the warp by a ratio, but the output size is not simply
+   that ratio: geom.W/H are the pre-deskew dimensions and rotateCrop then
+   crops to the largest inscribed rectangle, so rounding leaves the shared
+   edge a pixel or three out. Side by side that mismatch is a white sliver
+   down one edge — the "blank space". Correcting it costs one resample of a
+   few pixels in a few thousand, and only when there is something to fix. */
+function fitShared(c,axis,target){
+  const cur=axis==='h'?c.height:c.width;
+  if(cur===target||!cur) return c;
+  const k=target/cur;
+  const W=axis==='h'?Math.max(1,Math.round(c.width*k)):target;
+  const H=axis==='h'?target:Math.max(1,Math.round(c.height*k));
+  const out=mkCanvas(W,H), g=ctx2d(out,{});
+  g.imageSmoothingQuality='high';
+  g.drawImage(c,0,0,W,H);
+  return out;
+}
 
 /* Re-run a page's warp at an arbitrary scale, straight from the original
    pixels. One resample from source to final geometry. */
@@ -1935,7 +1970,7 @@ function movePage(fromId,ontoId,after){
   if(after) to++;
   S.pages.splice(to,0,moved);
   Join.userPicked=false;          // order changed, so re-derive the join defaults
-  Join.A=Join.B=null;
+  Join.parts=null;
 }
 function removePage(p){
   const i=S.pages.indexOf(p); if(i<0) return;
@@ -1946,12 +1981,18 @@ function removePage(p){
   });
   S.pages.splice(i,1);
   if(S.activeId===p.id) S.activeId=S.pages.length?S.pages[Math.max(0,i-1)].id:null;
-  if(Join.aId===p.id||Join.bId===p.id){ Join.A=Join.B=null; }
+  if(Join.slots.includes(p.id)){ Join.parts=null; }
   renderTray(); Pages.draw(); drawStep();
 }
 
 const Join={
-  aId:null, bId:null, userPicked:false,
+  /* slots[] replaces the old aId/bId pair. Joining three pages by doing two
+     pairwise joins costs an EXTRA resample: the first join has geom=null, so
+     the second one can only rescale that composite rather than re-warp from
+     the originals. Joining N at once keeps every page at one resample. */
+  slots:[], userPicked:false,
+  get aId(){ return this.slots[0]||null; },
+  get bId(){ return this.slots[1]||null; },
   edge:'right',          // 'right' = B beside A, 'bottom' = B under A
   ox:0, oy:0,            // B's offset from A's origin, in full-res pixels
   A:null, B:null,        // halves re-warped to a matched scale
@@ -1962,81 +2003,166 @@ const Join={
   pool(){ return S.pages.filter(p=>p.flat&&!p.consumed); },
 
   async enter(){
-    if(!this.syncPickers()){ this.A=this.B=null; this.draw(); return; }
+    if(!this.syncPickers()){ this.parts=null; this.draw(); return; }
     if(await this.prepare()) this.draw();
   },
 
+  /* One row per slot, rendered from slots[]. Nothing is pre-selected: two
+     pages chosen for you plus a preview already on screen reads as "this is
+     what I am about to do", when it was only a guess. */
   syncPickers(){
     const pool=this.pool();
-    /* Nothing is pre-selected. Two pages chosen for you and a preview already
-       on screen reads as "this is what I am about to do", which is not what
-       the tool meant — it was only a guess. Empty until you say so. */
-    for(const [sel,key] of [['#sel-a','aId'],['#sel-b','bId']]){
-      const el=$(sel), keep=this[key];
-      el.innerHTML='<option value="">— choose a page —</option>'
-        + pool.map((q,i)=>`<option value="${q.id}">${pad(i+1)} · ${q.name}</option>`).join('');
-      if(keep&&pool.some(q=>q.id===keep)) el.value=keep;
-      else { this[key]=null; el.value=''; }
-    }
-    if(this.aId&&this.aId===this.bId){ this.bId=null; $('#sel-b').value=''; }
-    const ready=pool.length>=2&&this.aId&&this.bId&&this.aId!==this.bId;
+    this.slots=this.slots.filter(id=>!id||pool.some(q=>q.id===id));
+    while(this.slots.length<2) this.slots.push(null);
+    const host=$('#join-slots'); host.innerHTML='';
+    const opts=pool.map((q,i)=>`<option value="${q.id}">${pad(i+1)} · ${q.name}</option>`).join('');
+    this.slots.forEach((id,i)=>{
+      const row=document.createElement('label');
+      row.className='field';
+      row.innerHTML=`<span class="lab"><span>Join — page ${String.fromCharCode(65+i)}</span>`
+        +`<span class="val">${i===0?'stays put':'slides on'}</span></span>`
+        +`<div class="slotrow"><select data-slot="${i}">`
+        +`<option value="">— choose a page —</option>${opts}</select>`
+        +(i>=2?`<button class="drop-slot" data-slot="${i}" title="Remove this slot">×</button>`:'')
+        +`</div>`;
+      const sel=row.querySelector('select');
+      sel.value=id||'';
+      sel.addEventListener('change',async e=>{
+        this.slots[i]=e.target.value||null;
+        this.userPicked=true;
+        if(await this.prepare()) this.draw(); else this.draw();
+      });
+      const x=row.querySelector('.drop-slot');
+      if(x) x.addEventListener('click',async ev=>{
+        ev.preventDefault();
+        this.slots.splice(i,1);
+        if(await this.prepare()) this.draw(); else this.draw();
+      });
+      host.appendChild(row);
+    });
+    const chosen=this.slots.filter(Boolean);
+    const dupes=new Set(chosen).size!==chosen.length;
+    const ready=chosen.length>=2&&!dupes;
     ['#btn-find-seam','#btn-join'].forEach(id=>{ const b=$(id); if(b) b.disabled=!ready; });
+    $('#btn-add-slot').disabled=this.slots.length>=pool.length||this.slots.length>=8;
+    $('#join-dupe').style.display=dupes?'block':'none';
     return ready;
+  },
+
+  /* Assign from the page strip: fills the first empty slot, otherwise starts
+     over from slot A. Faster than the dropdowns and it means clicking a
+     thumbnail does something useful on this step. */
+  async assign(id){
+    const i=this.slots.indexOf(null);
+    if(this.slots.includes(id)){
+      this.slots[this.slots.indexOf(id)]=null;
+    } else if(i>=0){
+      this.slots[i]=id;
+    } else {
+      this.slots=this.slots.map((_,k)=>k===0?id:null);
+    }
+    this.userPicked=true;
+    renderTray();
+    if(await this.prepare()) this.draw(); else this.draw();
+  },
+  addSlot(){
+    if(this.slots.length>=8) return;
+    this.slots.push(null);
+    this.syncPickers(); this.draw();
   },
 
   /* Re-warp both halves so they share a scale. Target is the LARGER of the
      two shared edges, so neither half is ever downsampled. */
+  /* Every part is re-warped from its ORIGINAL pixels to one matched scale,
+     so N parts cost one resample each — the whole point of doing this in one
+     step rather than as repeated pairwise joins. */
   async prepare(){
-    if(!this.syncPickers()){ this.A=this.B=null; return false; }
-    const a=S.pages.find(p=>p.id===this.aId), b=S.pages.find(p=>p.id===this.bId);
+    if(!this.syncPickers()){ this.parts=null; return false; }
+    const ids=this.slots.filter(Boolean);
+    const pages=ids.map(id=>S.pages.find(q=>q.id===id)).filter(Boolean);
+    if(pages.length<2){ this.parts=null; return false; }
     const horiz=this.edge==='right';
-    const shA=horiz?a.flat.height:a.flat.width;
-    const shB=horiz?b.flat.height:b.flat.width;
-    const target=Math.max(shA,shB);
-    await busy('Matching both halves to one scale',async()=>{
-      await raf();
-      this.A=Math.abs(shA-target)<1?a.flat:renderFlatAt(a,target/shA);
-      await raf();
-      this.B=Math.abs(shB-target)<1?b.flat:renderFlatAt(b,target/shB);
-      const span=Math.max(this.A.width+this.B.width,this.A.height+this.B.height);
-      this.pk=Math.min(1,1500/span);
-      this.pA=this.pk<1?scaleCanvas(this.A,Math.max(this.A.width,this.A.height)*this.pk):this.A;
-      this.pB=this.pk<1?scaleCanvas(this.B,Math.max(this.B.width,this.B.height)*this.pk):this.B;
-      if(horiz){ this.ox=this.A.width; this.oy=0; }
-      else     { this.ox=0; this.oy=this.A.height; }
+    const axis=horiz?'h':'v';
+    const shared=pages.map(q=>horiz?q.flat.height:q.flat.width);
+    const target=Math.max(...shared);
+    let out=null;
+    await busy(`Matching ${pages.length} pages to one scale`,async()=>{
+      const parts=[];
+      for(let i=0;i<pages.length;i++){
+        $('#busy-msg').textContent=`Page ${i+1} of ${pages.length}`;
+        await raf();
+        const c=Math.abs(shared[i]-target)<1?pages[i].flat:renderFlatAt(pages[i],target/shared[i]);
+        parts.push(fitShared(c,axis,target));
+      }
+      const totalW=parts.reduce((t,c)=>t+c.width,0);
+      const totalH=parts.reduce((t,c)=>t+c.height,0);
+      this.pk=Math.min(1,1800/Math.max(totalW,totalH));
+      /* Preview carries page A's tone, which is what the joined page will
+         inherit — so what you see is what you get. The composite itself is
+         built from untoned geometry so tone is applied exactly once. */
+      const tone=curAdj(pages[0]);
+      const prox=parts.map(c=>{
+        const sc=this.pk<1?scaleCanvas(c,Math.max(c.width,c.height)*this.pk):c;
+        return processCanvas(sc,tone,c.width);
+      });
+      // lay them edge to edge along the join axis
+      let run=0;
+      const off=parts.map(c=>{
+        const o=horiz?{x:run,y:0}:{x:0,y:run};
+        run+=horiz?c.width:c.height;
+        return o;
+      });
+      out={parts,prox,off,pages};
     });
-    return !!(this.A&&this.B);
+    if(!out) return false;
+    this.parts=out.parts; this.prox=out.prox; this.off=out.off; this.pageRefs=out.pages;
+    this.sel=1;                        // the part the arrows and dragging move
+    return true;
   },
 
-  /* Composite at a given scale. feather!==false applies the seam ramp.
-     At s===1 this is a pure 1:1 blit — no interpolation on either half. */
+  bounds(s){
+    const P=s===1?this.parts:this.prox;
+    let x0=0,y0=0,x1=0,y1=0;
+    this.off.forEach((o,i)=>{
+      const ox=Math.round(o.x*s), oy=Math.round(o.y*s);
+      x0=Math.min(x0,ox); y0=Math.min(y0,oy);
+      x1=Math.max(x1,ox+P[i].width); y1=Math.max(y1,oy+P[i].height);
+    });
+    return {x0,y0,W:x1-x0,H:y1-y0};
+  },
+
+  /* At s===1 this is a pure 1:1 blit of every part — no interpolation. */
   composite(s,useDiff){
-    const A=s===1?this.A:this.pA, B=s===1?this.B:this.pB;
-    const ox=Math.round(this.ox*s), oy=Math.round(this.oy*s);
-    const x0=Math.min(0,ox), y0=Math.min(0,oy);
-    const W=Math.max(A.width,ox+B.width)-x0, H=Math.max(A.height,oy+B.height)-y0;
-    const c=mkCanvas(W,H), g=ctx2d(c,{});
-    g.fillStyle='#ffffff'; g.fillRect(0,0,W,H);
-    g.drawImage(A,-x0,-y0);
-    let src=B;
-    if(!useDiff&&this.feather>0){
-      const fx=Math.max(1,this.feather*s);
-      const horiz=this.edge==='right';
-      const overlap=horiz?(A.width-ox):(A.height-oy);
-      if(overlap>fx) src=featherEdge(B,fx,horiz?'left':'top');
-    }
-    if(useDiff) g.globalCompositeOperation='difference';
-    g.drawImage(src,ox-x0,oy-y0);
+    const P=s===1?this.parts:this.prox;
+    const bb=this.bounds(s);
+    const c=mkCanvas(bb.W,bb.H), g=ctx2d(c,{});
+    g.fillStyle='#ffffff'; g.fillRect(0,0,bb.W,bb.H);
+    const horiz=this.edge==='right';
+    P.forEach((part,i)=>{
+      const ox=Math.round(this.off[i].x*s)-bb.x0, oy=Math.round(this.off[i].y*s)-bb.y0;
+      let src=part;
+      if(i>0&&!useDiff&&this.feather>0){
+        const prev=P[i-1];
+        const pox=Math.round(this.off[i-1].x*s), poy=Math.round(this.off[i-1].y*s);
+        const overlap=horiz?(pox+prev.width-Math.round(this.off[i].x*s))
+                           :(poy+prev.height-Math.round(this.off[i].y*s));
+        const fx=Math.max(1,this.feather*s);
+        if(overlap>fx) src=featherEdge(part,fx,horiz?'left':'top');
+      }
+      g.globalCompositeOperation=(useDiff&&i>0)?'difference':'source-over';
+      g.drawImage(src,ox,oy);
+    });
+    g.globalCompositeOperation='source-over';
     return c;
   },
 
   draw(){
-    if(!this.A||!this.B){
+    if(!this.parts||this.parts.length<2){
       View.show(null); $('#stage-empty').style.display='grid';
       const enough=this.pool().length>=2;
       $('#stage-empty').innerHTML=enough
-        ? '<div><div class="big">Pick two pages to join</div>'
-          +'<div class="sub">Choose page A and page B on the left</div></div>'
+        ? '<div><div class="big">Pick the pages to join</div>'
+          +'<div class="sub">Click them in the strip below, or use the menus on the left</div></div>'
         : '<div><div class="big">Two straightened pages needed</div>'
           +'<div class="sub">Straighten at least two photos, then come back</div></div>';
       badge(''); $('#join-readout').textContent='—'; return;
@@ -2045,38 +2171,65 @@ const Join={
     View.show(this.composite(this.pk,this.diff),52);
     const g=View.overlayCtx(), d=View.dpr;
     drawRulers(g);
-    // mark B's footprint and the seam so the offset is legible
-    const x0=Math.min(0,this.ox), y0=Math.min(0,this.oy);
-    const bx=(this.ox-x0)*this.pk, by=(this.oy-y0)*this.pk;
-    const tl=View.toView(bx,by), br=View.toView(bx+this.pB.width,by+this.pB.height);
-    g.save();
-    g.strokeStyle=CROPC; g.lineWidth=1.4*d; g.setLineDash([6*d,4*d]);
-    g.strokeRect(tl.x+.5,tl.y+.5,br.x-tl.x,br.y-tl.y);
-    g.setLineDash([]);
-    g.font=`600 ${10*d}px "IBM Plex Mono",monospace`;
-    g.fillStyle=CROPC;
-    g.fillText('B',tl.x+5*d,tl.y+14*d);
-    g.restore();
-    /* Label each half with the original photos inside it, so a joined page
-       still shows what it was made from. */
-    const a=S.pages.find(q=>q.id===this.aId), b=S.pages.find(q=>q.id===this.bId);
-    const ax=(0-x0)*this.pk, ay=(0-y0)*this.pk;
-    this.tag(g,a,ax,ay,this.pA.width,this.pA.height,ACCENT);
-    this.tag(g,b,bx,by,this.pB.width,this.pB.height,CROPC);
-
+    const bb=this.bounds(this.pk);
     const horiz=this.edge==='right';
-    const overlap=Math.round(horiz?(this.A.width-this.ox):(this.A.height-this.oy));
-    const out=this.composite(this.pk,false);
-    badge(`Join · <b>${horiz?'side by side':'stacked'}</b>`
-        + ` · offset <b>${Math.round(this.ox)}, ${Math.round(this.oy)}</b>`
-        + ` · overlap <b>${overlap}px</b>`
-        + ` · result <b>${Math.round(out.width/this.pk)}×${Math.round(out.height/this.pk)}</b>`);
+
+    this.prox.forEach((part,i)=>{
+      const ox=Math.round(this.off[i].x*this.pk)-bb.x0, oy=Math.round(this.off[i].y*this.pk)-bb.y0;
+      const tl=View.toView(ox,oy), br=View.toView(ox+part.width,oy+part.height);
+      const on=i===this.sel;
+      g.save();
+      g.strokeStyle=i===0?ACCENT:CROPC;
+      g.lineWidth=(on?2.2:1.2)*d;
+      g.setLineDash(on?[]:[6*d,4*d]);
+      g.strokeRect(tl.x+.5,tl.y+.5,br.x-tl.x,br.y-tl.y);
+      g.setLineDash([]);
+      g.font=`600 ${11*d}px "IBM Plex Mono",monospace`;
+      g.fillStyle=i===0?ACCENT:CROPC;
+      g.fillText(String.fromCharCode(65+i),tl.x+6*d,tl.y+16*d);
+      g.restore();
+      this.tag(g,this.pageRefs[i],ox,oy,part.width,part.height,i===0?ACCENT:CROPC);
+    });
+
+    let overlap=0;
+    if(this.sel>0){
+      const prev=this.prox[this.sel-1], po=this.off[this.sel-1], o=this.off[this.sel];
+      overlap=Math.round(horiz?(po.x+prev.width/this.pk-o.x):(po.y+prev.height/this.pk-o.y));
+    }
+    const res=this.bounds(1);
+    badge(`Join · <b>${this.parts.length} pages ${horiz?'side by side':'stacked'}</b>`
+        + ` · moving <b>${String.fromCharCode(65+this.sel)}</b>`
+        + ` · result <b>${res.W}×${res.H}</b>`);
+
+    /* With the shared edge exact, blank area can only come from an offset
+       ACROSS the join, which is the operator's own doing. Say so rather than
+       letting a white strip turn up in the export. */
+    const cross=this.off.reduce((m,o)=>Math.max(m,horiz?Math.abs(o.y):Math.abs(o.x)),0);
     $('#join-readout').innerHTML=
-       `A <b>${this.A.width}×${this.A.height}</b><br>B <b>${this.B.width}×${this.B.height}</b>`
-      +`<br>overlap <b>${overlap}px</b><br>preview <b>${Math.round(this.pk*100)}%</b>`;
+      this.parts.map((c,i)=>`${String.fromCharCode(65+i)} <b>${c.width}×${c.height}</b>`).join('<br>')
+      +`<br>result <b>${res.W}×${res.H}</b>`
+      +(this.sel>0?`<br>overlap <b>${overlap}px</b>`:'')
+      +(cross>1?`<br><span style="color:#a1660b">${Math.round(cross)}px off the join — that leaves a blank strip. Press Snap flush.</span>`:'');
+    this.renderList();
   },
 
-  /* An upward arrow under a half, naming the originals inside it. */
+  renderList(){
+    const host=$('#join-order'); if(!host) return;
+    host.innerHTML='';
+    if(!this.parts) return;
+    this.pageRefs.forEach((pg,i)=>{
+      const el=document.createElement('div');
+      el.className='item'+(i===this.sel?' sel':'');
+      el.innerHTML=`<span class="idx">${String.fromCharCode(65+i)}</span>`
+        +`<span class="sw" style="background-image:url(${pg.thumb||''})"></span>`
+        +`<span class="nm">${pg.name}</span>`
+        +`<span class="mt">${i===0?'fixed':'move'}</span>`;
+      el.addEventListener('click',()=>{ this.sel=Math.max(1,i); this.draw(); });
+      host.appendChild(el);
+    });
+  },
+
+  /* An upward arrow under a part, naming the originals inside it. */
   tag(g,page,px,py,pw,ph,colour){
     if(!page) return;
     const d=View.dpr;
@@ -2091,7 +2244,6 @@ const Join={
     const bx2=clamp(cx-wid/2,4*d,View.cw-wid-4*d);
     g.fillStyle='#ffffffee'; g.strokeStyle=colour; g.lineWidth=1.2*d;
     g.beginPath(); g.rect(bx2,base,wid,hgt); g.fill(); g.stroke();
-    // arrow pointing up at the half it describes
     g.beginPath();
     g.moveTo(cx,base-7*d); g.lineTo(cx-5*d,base); g.lineTo(cx+5*d,base); g.closePath();
     g.fillStyle=colour; g.fill();
@@ -2101,84 +2253,108 @@ const Join={
   },
 
   onDown(ev){
-    if(!this.A) return;
+    if(!this.parts) return;
     const pt=View.ptFromEvent(ev);
-    this.drag={x:pt.x,y:pt.y,ox:this.ox,oy:this.oy};
+    /* Grab whichever part is under the pointer, so with three or more you can
+       just take hold of the one you mean. Part A stays fixed by design. */
+    const bb=this.bounds(this.pk);
+    for(let i=this.prox.length-1;i>=1;i--){
+      const ox=Math.round(this.off[i].x*this.pk)-bb.x0, oy=Math.round(this.off[i].y*this.pk)-bb.y0;
+      if(pt.x>=ox&&pt.x<=ox+this.prox[i].width&&pt.y>=oy&&pt.y<=oy+this.prox[i].height){ this.sel=i; break; }
+    }
+    this.drag={x:pt.x,y:pt.y,ox:this.off[this.sel].x,oy:this.off[this.sel].y};
     $('#overlay').setPointerCapture(ev.pointerId);
+    this.draw();
   },
   onMove(ev){
     if(!this.drag) return;
     const pt=View.ptFromEvent(ev);
-    this.ox=this.drag.ox+(pt.x-this.drag.x)/this.pk;
-    this.oy=this.drag.oy+(pt.y-this.drag.y)/this.pk;
+    this.off[this.sel].x=this.drag.ox+(pt.x-this.drag.x)/this.pk;
+    this.off[this.sel].y=this.drag.oy+(pt.y-this.drag.y)/this.pk;
     this.clampOffset(); this.draw();
   },
   onUp(){ if(this.drag){ this.drag=null; this.draw(); } },
-  nudge(dx,dy){ this.ox+=dx; this.oy+=dy; this.clampOffset(); this.draw(); },
+  nudge(dx,dy){
+    if(!this.parts||this.sel<1) return;
+    this.off[this.sel].x+=dx; this.off[this.sel].y+=dy;
+    this.clampOffset(); this.draw();
+  },
   clampOffset(){
-    if(!this.A||!this.B) return;
-    // never let the halves separate completely or pass fully through each other
-    this.ox=clamp(this.ox,-this.B.width*0.9,this.A.width*1.1);
-    this.oy=clamp(this.oy,-this.B.height*0.9,this.A.height*1.1);
+    if(!this.parts) return;
+    /* Never let a part separate completely or pass fully through its
+       neighbour — the offsets stay in a range where a join still means
+       something. */
+    for(let i=1;i<this.off.length;i++){
+      const prev=this.parts[i-1], cur=this.parts[i];
+      const base=this.off[i-1];
+      if(this.edge==='right'){
+        this.off[i].x=clamp(this.off[i].x, base.x+prev.width*0.1, base.x+prev.width*1.1);
+        this.off[i].y=clamp(this.off[i].y, base.y-cur.height*0.5, base.y+cur.height*0.5);
+      }else{
+        this.off[i].y=clamp(this.off[i].y, base.y+prev.height*0.1, base.y+prev.height*1.1);
+        this.off[i].x=clamp(this.off[i].x, base.x-cur.width*0.5, base.x+cur.width*0.5);
+      }
+    }
+  },
+
+  snap(){
+    if(!this.parts) return;
+    for(let i=1;i<this.off.length;i++){
+      if(this.edge==='right') this.off[i].y=this.off[i-1].y;
+      else                    this.off[i].x=this.off[i-1].x;
+    }
+    this.clampOffset(); this.draw();
   },
 
   async findSeam(){
-    if(!this.A||!this.B) return;
+    if(!this.parts||this.sel<1) return;
     const axis=this.edge==='right'?'h':'v';
-    const res=await busy('Searching for the seam',async()=>{ await raf(); return findOverlap(this.A,this.B,axis); });
+    const A=this.parts[this.sel-1], B=this.parts[this.sel];
+    const res=await busy('Searching for the seam',async()=>{ await raf(); return findOverlap(A,B,axis); });
     if(!res) return;
     if(res.score<0.22){
-      toast(`No convincing overlap (score ${res.score.toFixed(2)}). Drag B by hand, or switch on Difference to check.`,'warn');
+      toast(`No convincing overlap (score ${res.score.toFixed(2)}). Drag it by hand, or switch on Difference.`,'warn');
       return;
     }
-    if(axis==='h'){ this.ox=this.A.width-res.overlap; this.oy=res.shift; }
-    else          { this.ox=res.shift; this.oy=this.A.height-res.overlap; }
+    const base=this.off[this.sel-1];
+    if(axis==='h'){ this.off[this.sel].x=base.x+A.width-res.overlap; this.off[this.sel].y=base.y+res.shift; }
+    else          { this.off[this.sel].x=base.x+res.shift; this.off[this.sel].y=base.y+A.height-res.overlap; }
     this.clampOffset(); this.draw();
-    toast(`Seam found: ${Math.round(res.overlap)}px overlap, ${Math.round(res.shift)}px shift, score ${res.score.toFixed(2)}.`);
+    toast(`Seam found: ${Math.round(res.overlap)}px overlap, score ${res.score.toFixed(2)}.`);
   },
 
   async commit(){
-    if(!this.A||!this.B) return;
-    const a=S.pages.find(p=>p.id===this.aId), b=S.pages.find(p=>p.id===this.bId);
-    History.push('join “'+a.name+'” + “'+b.name+'”');
+    if(!this.parts||this.parts.length<2) return;
+    const pages=this.pageRefs.slice();
+    History.push('join '+pages.length+' pages');
     let out;
     await busy('Joining at full resolution',async()=>{ await raf(); out=this.composite(1,false); });
     if(!out) return;
-    const pg=newPage(out,(a.name+'+'+b.name).slice(0,48));
+    const pg=newPage(out,pages.map(q=>q.name).join('+').slice(0,60));
     pg.corners=insetCorners(out,0);
     pg.geom=null;                       // already rectified; nothing to re-warp
-    pg.joinedFrom=[a.id,b.id];
+    pg.joinedFrom=pages.map(q=>q.id);
     /* Carry the provenance through, so joining a join still shows every
        original photo that ended up in the page. */
-    pg.sources=[...(a.sources||[a.name]),...(b.sources||[b.name])];
-    /* Tone is applied to the FINAL page, once, so the two halves cannot end up
-       with different curves and step at the seam. Inherit A's look. */
-    pg.adj={ocr:Object.assign({},a.adj.ocr), read:Object.assign({},a.adj.read)};
-    pg.tuned=a.tuned;
-    pg.cornersVerified=a.cornersVerified&&b.cornersVerified;
+    pg.sources=pages.reduce((acc,q)=>acc.concat(q.sources||[q.name]),[]);
+    /* Tone is applied to the FINAL page, once, so parts cannot end up with
+       different curves and step at a seam. Inherit part A's look. */
+    pg.adj=Object.assign({},pages[0].adj);
+    pg.tuned=pages[0].tuned;
+    pg.cornersVerified=pages.every(q=>q.cornersVerified);
     setFlat(pg,out);
     pg.thumb=thumbURL(out);
-    a.consumed=true; b.consumed=true;
-    a.include=false; b.include=false;   // the join replaces them in the export
-    /* Slot the join where A was, not at the end. Pushing it last put a
-       later loose photo ahead of it in the PDF, which is never what you
-       mean by "join the first two". */
-    S.pages.splice(S.pages.indexOf(a),0,pg);
+    pages.forEach(q=>{ q.consumed=true; q.include=false; });
+    /* Slot the join where the first part was, not at the end — pushing it
+       last put a later loose photo ahead of it in the PDF. */
+    S.pages.splice(S.pages.indexOf(pages[0]),0,pg);
     S.activeId=pg.id;
-    this.A=this.B=null;
-    renderTray(); this.syncPickers();
-    /* Stay on Join. A four-photo job is usually two joins, and being thrown
-       to Export after the first one meant navigating back every time. */
-    this.userPicked=false;              // let the next pair default from page order
+    this.parts=null; this.slots=[null,null]; this.userPicked=false;
+    renderTray();
     const left=this.pool().length;
-    if(left>=2){
-      await this.enter();
-      toast(`Joined into ${out.width}×${out.height}. ${left} page${left===1?'':'s'} left — next pair is ready.`);
-    }else{
-      this.A=this.B=null;
-      this.syncPickers(); this.draw();
-      toast(`Joined into ${out.width}×${out.height}. Nothing left to join.`);
-    }
+    this.syncPickers(); this.draw();
+    toast(`Joined ${pages.length} pages into ${out.width}×${out.height}.`
+        + (left>=2?` ${left} still available to join.`:' The parts are set aside — delete this page to bring them back.'));
     updateStepStates();
   }
 };
@@ -4354,6 +4530,7 @@ function renderTray(){
       ${p.regions.length?`<span class="rgn">${p.regions.length}</span>`:''}
       ${p.flat&&!p.cornersVerified?'<span class="unver" title="Corners auto-detected, never checked">!</span>':''}
       ${p.include?'':`<span class="joined" title="${why}">↦</span>`}
+      ${S.step===STEP.JOIN&&Join.slots.indexOf(p.id)>=0?`<span class="jslot">${String.fromCharCode(65+Join.slots.indexOf(p.id))}</span>`:''}
       <button class="del" title="Remove page">×</button>`;
 
     el.addEventListener('keydown',ev=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); el.click(); } });
@@ -4368,7 +4545,7 @@ function renderTray(){
         });
         S.pages.splice(i,1);
         if(S.activeId===p.id) S.activeId=S.pages.length?S.pages[Math.max(0,i-1)].id:null;
-        if(Join.aId===p.id||Join.bId===p.id){ Join.A=Join.B=null; }
+        if(Join.slots.includes(p.id)){ Join.parts=null; }
         renderTray(); drawStep(); return;
       }
       if(ev.target.classList.contains('pick')){
@@ -4379,6 +4556,9 @@ function renderTray(){
         if(S.step===STEP.EXPORT) Exporter.draw();
         return;
       }
+      /* On the Join step a thumbnail click assigns the page to a slot — that
+         is what a click should do there, and it beats the dropdowns. */
+      if(S.step===STEP.JOIN&&p.flat){ Join.assign(p.id); return; }
       S.activeId=p.id; S.selCorner=-1; S.selRegion=-1; Crop.hover=-1; View.resetView();
       Crop.mode=p.flat?'result':'edit';
       renderTray();
@@ -4555,7 +4735,7 @@ function drawStep(){
   else if(S.step===STEP.SCAN){ Crop.refreshButtons(); Crop.draw(); }
   else if(S.step===STEP.SLICE)    Slice.draw();
   else if(S.step===STEP.ADJUST){ Tone.syncUI(); Tone.draw(); }
-  else if(S.step===STEP.JOIN){ if(Join.A&&Join.B) Join.draw(); else Join.enter(); }
+  else if(S.step===STEP.JOIN){ if(Join.parts) Join.draw(); else Join.enter(); }
   else if(S.step===STEP.EXPORT)   Exporter.draw();
 
   syncHUD();
@@ -4600,14 +4780,16 @@ function wire(){
 
   /* stitching pane */
   /* join pane */
-  $('#sel-a').addEventListener('change',async e=>{ Join.aId=e.target.value; Join.userPicked=true; if(await Join.prepare()) Join.draw(); });
-  $('#sel-b').addEventListener('change',async e=>{ Join.bId=e.target.value; Join.userPicked=true; if(await Join.prepare()) Join.draw(); });
   $$('#seg-edge button').forEach(b=>b.addEventListener('click',async()=>{
     Join.edge=b.dataset.edge;
     $$('#seg-edge button').forEach(x=>x.classList.toggle('on',x===b));
     if(await Join.prepare()) Join.draw();
   }));
   $('#btn-find-seam').addEventListener('click',()=>Join.findSeam());
+  $('#btn-snap').addEventListener('click',()=>{
+    Join.snap(); toast('Flush again — no blank space in the export.');
+  });
+  $('#btn-add-slot').addEventListener('click',()=>Join.addSlot());
   if(!CONFIG.autoSeam) $('#btn-find-seam').style.display='none';
   $('#btn-join').addEventListener('click',()=>Join.commit());
   $('#btn-join-done').addEventListener('click',()=>goStep(STEP.EXPORT));
@@ -4691,12 +4873,12 @@ function wire(){
   $('#btn-order-name').addEventListener('click',()=>{
     History.push('sort by filename');
     S.pages.sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
-    Join.userPicked=false; Join.A=Join.B=null;
+    Join.userPicked=false; Join.parts=null;
     Pages.draw(); renderTray(); toast('Sorted by filename.');
   });
   $('#btn-order-rev').addEventListener('click',()=>{
     History.push('reverse the order');
-    S.pages.reverse(); Join.userPicked=false; Join.A=Join.B=null;
+    S.pages.reverse(); Join.userPicked=false; Join.parts=null;
     Pages.draw(); renderTray(); toast('Order reversed.');
   });
 
