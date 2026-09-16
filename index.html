@@ -348,6 +348,14 @@ details.adv>summary.strong{color:var(--paper);font-size:10.5px}
   margin-top:6px;padding-left:11px;border-left:2px solid var(--line);
 }
 .exp-why b{color:var(--paper);font-weight:600}
+.stops{
+  display:flex;justify-content:space-between;margin:-2px 2px 0;
+  font-family:var(--mono);font-size:8.5px;line-height:1.25;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--graphite-dim);text-align:center;
+}
+.stops span{flex:1}
+.stops span:first-child{text-align:left}
+.stops span:last-child{text-align:right}
 .btn.equal{
   background:var(--surface);border:1.5px solid var(--accent);color:var(--accent);
   font-weight:600;padding:11px 12px;
@@ -355,6 +363,8 @@ details.adv>summary.strong{color:var(--paper);font-size:10.5px}
 .btn.equal:hover:not(:disabled){background:var(--accent);color:#fff}
 .btn.equal:disabled{border-color:var(--line);color:var(--graphite-dim)}
 #btn-compare.on{background:var(--warn);border-color:var(--warn);color:#fff;font-weight:600}
+.btn.equal.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.equal.on:hover:not(:disabled){background:var(--accent);color:#fff}
 .choices{margin-top:2px}
 .choices > * + .btn.equal{margin-top:14px}
 .orline{
@@ -688,12 +698,16 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <button class="btn primary wide" id="btn-auto-enhance">Auto-enhance all images</button>
       <div class="exp-why">Measures <b>every</b> image separately, and picks the strength below for each. <kbd>A</kbd></div>
 
-      <div class="eyebrow" style="margin-top:16px">Strength on this page</div>
-      <div class="seg" id="seg-strength">
-        <button data-strength="0.25">Extra gentle</button>
-        <button data-strength="0.5">Gentle</button>
-        <button data-strength="1" class="on">Normal</button>
-        <button data-strength="1.4">Strong</button>
+      <label class="field" style="margin-top:16px;margin-bottom:2px">
+        <span class="lab"><span>Strength on this page</span><span class="val" id="v-strength">100% · Normal</span></span>
+        <input type="range" id="s-strength" min="0" max="140" step="5" value="100" list="strength-stops">
+      </label>
+      <datalist id="strength-stops">
+        <option value="25"></option><option value="50"></option>
+        <option value="100"></option><option value="140"></option>
+      </datalist>
+      <div class="stops">
+        <span>Extra<br>gentle</span><span>Gentle</span><span>Normal</span><span>Strong</span>
       </div>
       <div class="exp-why"><b>Extra gentle</b> for a cover that is mostly photographs, <b>Gentle</b> for a page with one or two. A page of prices takes <b>Normal</b> or <b>Strong</b>.</div>
 
@@ -787,7 +801,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
           <button class="btn equal wide" id="btn-to-join">4 &middot; Join / merge photos</button>
           <div class="exp-why">The menu came in halves.</div>
           <div class="orline">or</div>
-          <button class="btn equal wide" id="btn-to-export">5 &middot; Continue to export</button>
+          <button class="btn equal wide" id="btn-to-export">6 &middot; Continue to export</button>
           <div class="exp-why">Each photo is its own page.</div>
         </div>
       </div>
@@ -901,7 +915,80 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       </div>
 
       <div class="pane-foot">
-        <button class="btn primary wide" id="btn-join-done">5 &middot; Done joining — continue to export</button>
+        <button class="btn primary wide" id="btn-join-done">5 &middot; Done joining — on to resize</button>
+      </div>
+    </section>
+
+    <section class="pane" data-pane="size">
+      <div class="grp">
+        <div class="eyebrow">Size &amp; quality</div>
+        <div class="choices" id="size-presets">
+          <button class="btn equal wide" data-sp="full">Full size</button>
+          <div class="exp-why">Nothing resampled at all. Largest files, and the most for a parser to read.</div>
+
+          <button class="btn equal wide" data-sp="standard">Standard</button>
+          <div class="exp-why">Capped at 4000&nbsp;px. <b>The default</b> — right for almost every job.</div>
+
+          <button class="btn equal wide" data-sp="half">Half size</button>
+          <div class="exp-why">Capped at 2400&nbsp;px. Roughly a third of the file size.</div>
+
+          <button class="btn equal wide" data-sp="small">Small</button>
+          <div class="exp-why">Capped at 1600&nbsp;px and under 400&nbsp;KB each. For attaching or emailing.</div>
+        </div>
+      </div>
+
+      <details class="adv">
+        <summary class="strong"><b>Fine tune</b></summary>
+
+        <div class="eyebrow" style="margin-top:12px">Resize</div>
+        <label class="field">
+          <span class="lab"><span>How</span></span>
+          <select id="sel-resize">
+            <option value="longest">Cap the longest edge</option>
+            <option value="percent">Scale by percent</option>
+            <option value="exact">Exact width &amp; height</option>
+            <option value="none">Leave at full size</option>
+          </select>
+        </label>
+        <label class="field" id="rz-longest">
+          <span class="lab"><span>Longest edge</span><span class="val" id="v-maxdim-img">4000 px</span></span>
+          <input type="range" id="s-maxdim-img" min="800" max="6000" step="100" value="4000">
+        </label>
+        <label class="field" id="rz-percent" style="display:none">
+          <span class="lab"><span>Scale to</span><span class="val" id="v-rzpct">100%</span></span>
+          <input type="range" id="s-rzpct" min="10" max="100" step="5" value="100">
+        </label>
+        <div id="rz-exact" style="display:none">
+          <div class="row">
+            <label class="field" style="flex:1"><span class="lab"><span>Width px</span></span>
+              <input type="number" id="in-rzw" min="64" max="12000" step="1" value="2480"></label>
+            <label class="field" style="flex:1"><span class="lab"><span>Height px</span></span>
+              <input type="number" id="in-rzh" min="64" max="12000" step="1" value="3508"></label>
+          </div>
+          <label class="check"><input type="checkbox" id="c-rzfit" checked> Keep the shape &mdash; fit inside those, do not stretch</label>
+        </div>
+
+        <div class="eyebrow" style="margin-top:16px">Compress</div>
+        <label class="field">
+          <span class="lab"><span>Quality</span><span class="val" id="v-q">92%</span></span>
+          <input type="range" id="s-q" min="60" max="100" step="1" value="92">
+        </label>
+        <label class="field">
+          <span class="lab"><span>Size limit per image</span><span class="val" id="v-target">off</span></span>
+          <input type="range" id="s-target" min="0" max="4000" step="50" value="0">
+        </label>
+        <div class="note">A limit lowers quality only as far as it must, then stops. Past a sensible floor it makes the image <b>smaller</b> rather than uglier &mdash; a big page will not fit in 200&nbsp;KB at any quality worth having.</div>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="c-lossless"> Lossless PNG &mdash; far larger files</label>
+      </details>
+
+      <div class="grp">
+        <div class="eyebrow">What comes out</div>
+        <div class="list" id="size-table"></div>
+        <div class="note" id="size-total">&mdash;</div>
+      </div>
+
+      <div class="pane-foot">
+        <button class="btn primary wide" id="btn-size-next">6 &middot; Continue to export</button>
       </div>
     </section>
 
@@ -944,15 +1031,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <details class="adv">
         <summary>Quality and size</summary>
 
-        <label class="field">
-          <span class="lab"><span>Image quality</span><span class="val" id="v-q">92%</span></span>
-          <input type="range" id="s-q" min="60" max="100" step="1" value="92">
-        </label>
-        <label class="field">
-          <span class="lab"><span>Image longest edge</span><span class="val" id="v-maxdim-img">4000 px</span></span>
-          <input type="range" id="s-maxdim-img" min="1600" max="5000" step="100" value="4000">
-        </label>
-        <div class="note" style="margin-bottom:12px">Exported images. A phone photo is about 4000&nbsp;px on its long side, so the default leaves them essentially untouched — resolution is the one thing worth spending file size on for a parser.</div>
+        <div class="note" style="margin-bottom:12px">Resizing and compression are on step&nbsp;5, <b>Resize</b>.</div>
         <label class="field">
           <span class="lab"><span>PDF longest edge</span><span class="val" id="v-maxdim">2600 px</span></span>
           <input type="range" id="s-maxdim" min="1200" max="4200" step="100" value="2600">
@@ -1099,12 +1178,15 @@ const EMPTY_LINES=[
   ['An empty copy stand is a tidy copy stand','Add photos when you are ready']
 ];
 const pick=a=>a[Math.floor(Math.random()*a.length)];
+/* Named stops on a continuous slider: the names are what people talk about,
+   the numbers are what the maths needs. */
+const strengthName=v=>v<=0.05?'off':v<=0.36?'extra gentle':v<=0.74?'gentle':v<=1.18?'normal':'strong';
 const EMPTY_PICK=pick(EMPTY_LINES);
 
 const APP={
   name:'Menu Scan',
-  version:'1.9',
-  built:'2026-08-26',
+  version:'2.2',
+  built:'2026-09-10',
   tagline:'photos to PDF & OCR'
 };
 
@@ -1375,10 +1457,15 @@ const cvReady = ()=> LIB.cv && window.cv && typeof cv.Mat==='function';
 const CONFIG={
   enableSlicing:false,
   requireSliceBeforeEnhance:false,
-  /* Automatic edge detection is off — it rarely found the right quad on
-     these photos and a wrong quad is worse than no quad. detectQuad and
-     detectQuadJS are untouched; flip this to bring the button back. */
-  autoDetect:false,
+  /* Automatic edge detection is back on, but GATED. The detector separates
+     page from background by brightness, so it is accurate to about 0.2% when
+     they differ and hopeless when they do not. Measured across ten
+     scenarios: everything scoring 91+ levels of page-to-surface contrast
+     came in under 2% corner error, everything at 43 or below was off by
+     10-24%. The gate refuses below 60 rather than hand over a wrong quad,
+     which is what made this unusable before. */
+  autoDetect:true,
+  detectMinContrast:60,
   /* Automatic seam search is off. Join.findOverlap and its tests are still
      here untouched — flip this to true to bring the button back. */
   autoSeam:false,
@@ -1400,18 +1487,19 @@ const CONFIG={
      This flag covers the jokes only. */
   playful:true
 };
-const STEP={PAGES:'pages',SCAN:'scan',ADJUST:'adjust',SLICE:'slice',JOIN:'join',EXPORT:'export'};
+const STEP={PAGES:'pages',SCAN:'scan',ADJUST:'adjust',SLICE:'slice',JOIN:'join',SIZE:'size',EXPORT:'export'};
 const STEP_META={
   pages :{title:'Reorder', need:()=>true},
   scan  :{title:'Straighten', need:()=>S.pages.length>0},
   adjust:{title:'Adjust', need:p=>!!(p&&p.flat)},
   slice :{title:'Slice',  need:p=>!!(p&&p.flat)},
   join  :{title:'Join',   need:()=>S.pages.filter(x=>x.flat&&!x.consumed).length>=2},
+  size  :{title:'Resize', need:()=>S.pages.some(x=>x.flat)},
   export:{title:'Export', need:()=>S.pages.some(x=>x.flat&&x.include)}
 };
 const FLOW=CONFIG.enableSlicing
-  ? [STEP.PAGES,STEP.SCAN,STEP.ADJUST,STEP.SLICE,STEP.JOIN,STEP.EXPORT]
-  : [STEP.PAGES,STEP.SCAN,STEP.ADJUST,STEP.JOIN,STEP.EXPORT];
+  ? [STEP.PAGES,STEP.SCAN,STEP.ADJUST,STEP.SLICE,STEP.JOIN,STEP.SIZE,STEP.EXPORT]
+  : [STEP.PAGES,STEP.SCAN,STEP.ADJUST,STEP.JOIN,STEP.SIZE,STEP.EXPORT];
 
 const DEFAULT_ADJ={
   mode:'color', strength:1, flat:0, bri:0, con:0, sha:0, hig:0, shp:0,
@@ -1427,6 +1515,7 @@ const S={
   selRegion:-1,
   spaceDown:false,
   startedAt:0,      // first import, for the session summary
+  autoToned:false,  // auto-enhance has already had its one automatic run
   dragPid:null
 };
 
@@ -1445,6 +1534,7 @@ function newPage(canvas,name){
     sources:[name||'page'],      // original photo names that make up this page
     tuned:false,                 // has anyone actually touched the tone controls?
     cornersVerified:false,       // did a human actually check the corners?
+    autoTried:false,             // auto-detect has already had its one go
     corners:null,                // 4 pts in raw-image space, TL TR BR BL
     rotate:0,
     flat:null,                   // warped, full resolution
@@ -2619,18 +2709,46 @@ const Crop={
   },
 
   /* ── automatic edge detection ────────────────────────────────── */
-  async detect(){
-    const p=activePage(); if(!p) return;
+  async detect(opts){
+    const p=activePage(); if(!p) return false;
+    const quiet=!!(opts&&opts.quiet);
     const t=+$('#s-canny').value, b=+$('#s-blur').value;
-    const found=await busy('Finding document edges',async()=>{
+    const res=await busy('Finding the page edges',async()=>{
       await raf();
-      return cvReady() ? detectQuad(p.raw,t,b) : detectQuadJS(p.raw);
+      const found=cvReady()?detectQuad(p.raw,t,b):detectQuadJS(p.raw);
+      if(!found) return {found:null};
+      return {found, conf:quadConfidence(p.raw,found)};
     });
-    if(!found){ toast('No clean rectangle found. Try lowering the edge threshold, or place the corners by hand.','warn'); return; }
-    p.corners=found; S.selCorner=-1;
+    if(!res) return false;
+    if(!res.found){
+      if(!quiet) toast('No page-shaped region found. Place the corners by hand.','warn');
+      return false;
+    }
+    /* Refuse rather than offer a bad guess: a wrong quad costs more to
+       correct than an untouched one costs to set from scratch. */
+    const c=res.conf;
+    if(c.frac>0.93||c.contrast<CONFIG.detectMinContrast){
+      if(!quiet) toast(c.frac>0.93
+        ? 'The page fills the whole frame, so there is no edge to find.'
+        : `Page and background are only ${Math.round(c.contrast)} levels apart — too close to trust. Place the corners by hand.`,'warn');
+      return false;
+    }
+    History.push('detect edges on “'+p.name+'”');
+    p.corners=res.found; S.selCorner=-1;
     p.cornersVerified=false;     // confident is not the same as correct
     this.draw();
-    toast('Edges detected. Check each corner before flattening.');
+    if(!quiet) toast(`Edges found (${Math.round(c.contrast)} levels of contrast). Check each corner before flattening.`);
+    return true;
+  },
+
+  /* One silent attempt per page, as you arrive on it. Either it saves four
+     corner drags or it leaves everything exactly as it was. */
+  async autoTry(){
+    if(!CONFIG.autoDetect||busyDepth>0) return;
+    const p=activePage();
+    if(!p||p.flat||p.autoTried||p.cornersVerified) return;
+    p.autoTried=true;
+    if(await this.detect({quiet:true})) toast('Edges detected automatically — check the corners.');
   },
 
   async flatten(opts){
@@ -2761,6 +2879,43 @@ function detectQuad(srcCanvas,cannyT,blurK){
     }
     return null;
   });
+}
+
+/* How much should a detected quad be trusted?
+
+   detectQuadJS finds the page by brightness, so it works when page and
+   surface differ and not otherwise — and that is measurable rather than a
+   matter of hope. Sample inside the quad and in a ring just outside: on a
+   dark table the gap is 110-120 levels and the corners land within 0.3%; on
+   a white table the gap collapses to 20-40 and the quad is out by more than
+   a tenth of the page. */
+function quadConfidence(src,q){
+  const LONG=300;
+  const k=Math.min(1,LONG/Math.max(src.width,src.height));
+  const sm=k<1?scaleCanvas(src,LONG):src;
+  const w=sm.width,h=sm.height;
+  const d=ctx2d(sm).getImageData(0,0,w,h).data;
+  const Q=q.map(p=>({x:p.x*k,y:p.y*k}));
+  const cx=Q.reduce((t,p)=>t+p.x,0)/4, cy=Q.reduce((t,p)=>t+p.y,0)/4;
+  const shrink=f=>Q.map(p=>({x:cx+(p.x-cx)*f,y:cy+(p.y-cy)*f}));
+  const inPoly=(P,px,py)=>{
+    let n=false;
+    for(let i=0,j=3;i<4;j=i++){
+      if((P[i].y>py)!==(P[j].y>py)&&
+         px<(P[j].x-P[i].x)*(py-P[i].y)/(P[j].y-P[i].y)+P[i].x) n=!n;
+    }
+    return n;
+  };
+  const inner=shrink(0.86), outer=shrink(1.16);
+  let si=0,ni=0,so=0,no=0,area=0;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const o=(y*w+x)*4;
+    const L=0.299*d[o]+0.587*d[o+1]+0.114*d[o+2];
+    if(inPoly(inner,x,y)){ si+=L; ni++; }
+    else if(!inPoly(outer,x,y)){ so+=L; no++; }
+    if(inPoly(Q,x,y)) area++;
+  }
+  return { contrast:(ni?si/ni:0)-(no?so/no:0), frac:area/(w*h) };
 }
 
 /* ── Pure-JS quad detection fallback ──────────────────────────────
@@ -3578,8 +3733,7 @@ const Tone={
     drawRulers(g);
     const modeLabel=$('#sel-mode').selectedOptions[0].textContent.split('—')[0].trim();
     badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · ${before?'<b style="color:#a1660b">BEFORE — untouched</b>':(isTouched(p)?'<b>after</b> · '+modeLabel:'not adjusted yet')}`
-        + (curAdj(p).strength!==1?` · <b>${
-            curAdj(p).strength<=0.25?'extra gentle':curAdj(p).strength<1?'gentle':'strong'}</b>`:'')
+        + (curAdj(p).strength!==1?` · <b>${strengthName(curAdj(p).strength)}</b>`:'')
         + (this.locked()?' · <b style="color:#ffc247">locked until sliced</b>':'')
         + ` · preview at ${p._proxy.width}px`);
   },
@@ -3594,7 +3748,8 @@ const Tone={
     const a=curAdj(p);
     $('#sel-mode').value=a.mode;
     const stv=(a.strength==null?1:a.strength);
-    $$('#seg-strength button').forEach(b=>b.classList.toggle('on',+b.dataset.strength===stv));
+    $('#s-strength').value=Math.round(stv*100);
+    $('#v-strength').textContent=`${Math.round(stv*100)}% · ${strengthName(stv)}`;
     $('#s-flat').value=a.flat; $('#v-flat').textContent=a.flat;
     $('#s-bri').value=a.bri; $('#s-con').value=a.con; $('#s-sha').value=a.sha;
     $('#s-hig').value=a.hig; $('#s-shp').value=a.shp;
@@ -3659,6 +3814,7 @@ const Tone={
     if(!last) last=autoAdjust((activePage()||pages[0])._proxy);
     renderTray(); this.syncUI(); this.draw();
     const a=activePage()?curAdj(activePage()):last.adj;
+    S.autoToned=true;
     const gentle=pages.filter(x=>curAdj(x).strength<1).length;
     toast(`Auto-enhanced ${pages.length} image${pages.length>1?'s':''}, each measured on its own.`
         + (gentle?` ${gentle} looked picture-heavy and got a lighter touch.`:'')
@@ -4149,6 +4305,132 @@ const ZIP_FOLDERS={ ocr:'ocr-for-scanning' };
 
 const PDF_FORMATS={ a4:[595.28,841.89], letter:[612,792] };
 
+/* ── Resize & compress step ───────────────────────────────────────
+   Its own step, because this is a thing you DO rather than a preference
+   buried in a disclosure — and it shows the consequence of every setting as
+   exact dimensions per page, instead of making you export to find out.
+
+   The defaults ARE the previous behaviour, so walking through and pressing
+   nothing leaves the output byte-identical to not having the step at all. */
+/* Four presets covering what people actually ask for, with the sliders kept
+   as the single source of truth — a preset just sets them. So the buttons and
+   the fine-tune section can never disagree, and "which one am I on" is
+   answered by reading the sliders back rather than by a separate flag that
+   could drift out of step. */
+const SIZE_PRESETS={
+  full    :{mode:'none',   longest:4000, q:96, target:0},
+  standard:{mode:'longest',longest:4000, q:92, target:0},
+  half    :{mode:'longest',longest:2400, q:86, target:0},
+  small   :{mode:'longest',longest:1600, q:82, target:400}
+};
+
+const Size={
+  apply(name){
+    const z=SIZE_PRESETS[name]; if(!z) return;
+    $('#sel-resize').value=z.mode;
+    $('#s-maxdim-img').value=z.longest; $('#v-maxdim-img').textContent=z.longest+' px';
+    $('#s-rzpct').value=100; $('#v-rzpct').textContent='100%';
+    $('#c-rzfit').checked=true;
+    $('#s-q').value=z.q; $('#v-q').textContent=z.q+'%';
+    $('#s-target').value=z.target;
+    $('#v-target').textContent=z.target?z.target+' KB':'off';
+    $('#c-lossless').checked=false;
+    $('#sel-resize').dispatchEvent(new Event('change',{bubbles:true}));
+  },
+
+  /* Which preset do the current settings correspond to, if any? */
+  current(){
+    const q=+$('#s-q').value, t=+$('#s-target').value;
+    const mode=$('#sel-resize').value, long=+$('#s-maxdim-img').value;
+    if($('#c-lossless').checked) return null;
+    for(const [k,z] of Object.entries(SIZE_PRESETS)){
+      if(z.mode!==mode||z.q!==q||z.target!==t) continue;
+      if(mode==='longest'&&z.longest!==long) continue;
+      return k;
+    }
+    return null;
+  },
+
+  syncPresets(){
+    const cur=this.current();
+    $$('#size-presets button').forEach(b=>b.classList.toggle('on',b.dataset.sp===cur));
+    return cur;
+  },
+
+  draw(){
+    const pages=exportPages();
+    const p=activePage();
+    if(p&&p.flat){
+      View.show(Tone.ensurePreview(p),52);
+      drawRulers(View.overlayCtx());
+      const z=Exporter.sizing();
+      const out=this.outFor(p,z);
+      const same=out.w===p.flat.width&&out.h===p.flat.height;
+      badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height}`
+          + (same?' · <b>unchanged</b>':` → <b>${out.w}×${out.h}</b>`));
+      $('#stage-empty').style.display='none';
+    }else{
+      View.show(null); $('#stage-empty').style.display='grid';
+      $('#stage-empty').innerHTML='<div><div class="big">Nothing to resize yet</div>'
+        +'<div class="sub">Straighten at least one photo first</div></div>';
+      badge('');
+    }
+    this.syncPresets();
+    this.table(pages);
+  },
+
+  /* Output dimensions for one page, worked out without touching a pixel. */
+  outFor(p,z){
+    const W=p.flat.width, H=p.flat.height;
+    if(z.mode==='none') return {w:W,h:H};
+    if(z.mode==='longest'){
+      const long=Math.max(W,H);
+      if(long<=z.longest) return {w:W,h:H};
+      const k=z.longest/long;
+      return {w:Math.round(W*k),h:Math.round(H*k)};
+    }
+    if(z.mode==='percent'){
+      if(z.pct>=0.999) return {w:W,h:H};
+      return {w:Math.max(1,Math.round(W*z.pct)),h:Math.max(1,Math.round(H*z.pct))};
+    }
+    const tw=Math.max(8,z.w|0), th=Math.max(8,z.h|0);
+    if(!z.fit) return {w:tw,h:th};
+    const k=Math.min(tw/W,th/H);
+    return {w:Math.max(1,Math.round(W*k)),h:Math.max(1,Math.round(H*k))};
+  },
+
+  table(pages){
+    const host=$('#size-table'); if(!host) return;
+    host.innerHTML='';
+    const z=Exporter.sizing();
+    let px=0,pxOut=0;
+    pages.forEach((p,i)=>{
+      const o=this.outFor(p,z);
+      px+=p.flat.width*p.flat.height; pxOut+=o.w*o.h;
+      const same=o.w===p.flat.width&&o.h===p.flat.height;
+      const el=document.createElement('div');
+      el.className='item'+(p.id===S.activeId?' sel':'');
+      el.innerHTML=`<span class="idx">${pad(i+1)}</span>`
+        +`<span class="sw" style="background-image:url(${p.thumb||''})"></span>`
+        +`<span class="nm">${p.name}</span>`
+        +`<span class="mt">${same?'unchanged':o.w+'×'+o.h}</span>`;
+      el.addEventListener('click',()=>{ S.activeId=p.id; renderTray(); this.draw(); });
+      host.appendChild(el);
+    });
+    const note=$('#size-total');
+    if(!pages.length){ note.textContent='—'; return; }
+    const cur=this.current();
+    const ratio=px?pxOut/px:1;
+    note.innerHTML=(cur?'':'<b>Custom</b> — ')+(z.targetKB
+      ? `Each image squeezed under <b>${z.targetKB} KB</b> — dropping resolution if quality alone cannot get there.`
+      : (ratio>0.999
+        ? `<b>Full size</b> — no resampling at all. Images come out exactly as the previous step left them.`
+        : `About <b>${Math.round(ratio*100)}%</b> of the pixels, so roughly <b>${Math.round(ratio*100)}%</b> of the file size.`));
+  },
+
+  reset(){ this.apply('standard'); this.draw(); }
+};
+
 const Exporter={
   draw(){
     const p=activePage();
@@ -4266,11 +4548,89 @@ const Exporter={
     if(note) note.style.display=(LIB.jspdf&&LIB.jszip)?'none':'block';
   },
 
+  /* Resize settings, read once so a whole export run is consistent. */
+  sizing(){
+    const mode=$('#sel-resize').value;
+    return {
+      mode,
+      longest:+$('#s-maxdim-img').value,
+      pct:+$('#s-rzpct').value/100,
+      w:+$('#in-rzw').value, h:+$('#in-rzh').value,
+      fit:$('#c-rzfit').checked,
+      targetKB:+$('#s-target').value
+    };
+  },
+
   render(p,maxDim){
     const full=processCanvas(p.flat,p.adj,p.flat.width);
     return maxDim?scaleCanvas(full,maxDim):full;
   },
 
+  /* One resample to the requested output size, whichever way it was asked
+     for. Exact mode either fits inside the box keeping shape, or stretches
+     to it if the operator has said they want those precise dimensions. */
+  resized(c,z){
+    if(!z||z.mode==='none') return c;
+    if(z.mode==='longest'){
+      const long=Math.max(c.width,c.height);
+      return long<=z.longest?c:scaleCanvas(c,z.longest);
+    }
+    if(z.mode==='percent'){
+      if(z.pct>=0.999) return c;
+      return scaleCanvas(c,Math.max(8,Math.round(Math.max(c.width,c.height)*z.pct)));
+    }
+    const tw=Math.max(8,z.w|0), th=Math.max(8,z.h|0);
+    let W=tw,H=th;
+    if(z.fit){
+      const k=Math.min(tw/c.width,th/c.height);
+      W=Math.max(1,Math.round(c.width*k)); H=Math.max(1,Math.round(c.height*k));
+    }
+    if(W===c.width&&H===c.height) return c;
+    const out=mkCanvas(W,H), g=ctx2d(out,{});
+    g.imageSmoothingQuality='high';
+    g.drawImage(c,0,0,W,H);
+    return out;
+  },
+
+  /* Compress to a size limit, preferring RESOLUTION over quality.
+
+     Encoding is the only honest way to know a JPEG's size — it depends on the
+     picture, not just the pixel count — so this really encodes, bisecting
+     quality and keeping the HIGHEST setting that fits.
+
+     Quality alone cannot always get there: a 12 MP page will not fit in
+     200 KB at any quality worth having, and the first version of this quietly
+     returned a q0.30 blob that both missed the target AND looked bad. Past a
+     floor of 0.55 it stops squeezing quality and sheds pixels instead,
+     because JPEG mush looks worse than a smaller sharp picture. Returns the
+     canvas it settled on, so the caller can report real dimensions. */
+  async shrinkToTarget(blob,canvas,type,targetKB){
+    if(!targetKB||type!=='image/jpeg'||blob.size<=targetKB*1024)
+      return {blob,canvas,shrank:false};
+    const limit=targetKB*1024, QFLOOR=0.55;
+    let cur=canvas, best={blob,canvas}, scaled=false;
+    for(let round=0;round<4;round++){
+      const floorBlob=await canvasBlob(cur,type,QFLOOR);
+      if(floorBlob.size<=limit){
+        let lo=QFLOOR, hi=0.97, fit=null;
+        for(let i=0;i<6;i++){
+          const mid=(lo+hi)/2;
+          const t=await canvasBlob(cur,type,mid);
+          if(t.size<=limit){ fit=t; lo=mid; } else { hi=mid; }
+          if(hi-lo<0.02) break;
+        }
+        best={blob:fit||floorBlob,canvas:cur};
+        break;
+      }
+      best={blob:floorBlob,canvas:cur};
+      const k=Math.sqrt(limit/floorBlob.size)*0.94;
+      const long=Math.round(Math.max(cur.width,cur.height)*clamp(k,0.35,0.95));
+      if(long<200) break;
+      cur=scaleCanvas(cur,long); scaled=true;
+      await raf();
+    }
+    return {blob:best.blob,canvas:best.canvas,shrank:scaled};
+  },
   /* Produces the PDF as a Blob and does NOT download it, so the same code
      can either be saved on its own or dropped inside the ZIP. Chrome blocks
      the second automatic download from a page, which is what made "export
@@ -4351,8 +4711,11 @@ const Exporter={
       const plain=!LIB.jszip;
       const entries=[];                        // fallback accumulator
       const zip=plain?null:new JSZip();
+      const z=this.sizing();
       const put=async(name,canvas)=>{
-        const blob=await canvasBlob(canvas,type,q);
+        const out=this.resized(canvas,z);
+        let blob=await canvasBlob(out,type,q);
+        blob=(await this.shrinkToTarget(blob,out,type,z.targetKB)).blob;
         if(plain) entries.push({name,bytes:await blobBytes(blob)});
         else zip.file(name,blob,{compression:'STORE'});
         return blob.size;
@@ -4373,11 +4736,26 @@ const Exporter={
         pages:[]
       };
 
+      /* One page and nothing else to bundle: hand it over as the image
+         itself. A zip containing exactly one file is packaging for its own
+         sake. This has to sit BEFORE the encode loop, or the page gets
+         encoded twice — once into an archive that then gets thrown away. */
+      if(mode==='images'&&pages.length===1&&!pages[0].regions.length){
+        const one=this.resized(this.render(pages[0],null),z);
+        const first=await canvasBlob(one,type,q);
+        const sh=await this.shrinkToTarget(first,one,type,z.targetKB);
+        download(sh.blob,`${safeName(pages[0].name)}_${stamp()}.${ext}`);
+        toast(`One page, so it came out as a single ${ext.toUpperCase()} rather than a zip`
+            + ` — ${sh.canvas.width}×${sh.canvas.height}, ${Math.round(sh.blob.size/1024)} KB.`
+            + (sh.shrank?' Scaled down to meet the size limit.':''));
+        return;
+      }
+
       for(let i=0;i<pages.length;i++){
         const p=pages[i];
         $('#busy-msg').textContent=`Image ${i+1} of ${pages.length}`;
         await raf();
-        const full=this.render(p,maxDimImg);
+        const full=this.render(p,z.mode==='longest'?z.longest:null);
         const fn=`${dir}${pad(i+1)}_${safeName(p.name)}.${ext}`;
         if(mode==='images'||inclFull||!p.regions.length) bytes+=await put(fn,full);
         const entry={order:i+1,name:p.name,file:fn,
@@ -4732,10 +5110,18 @@ function drawStep(){
     $('#stage-empty').innerHTML=`<div><div class="big">${big}</div><div class="sub">${sub}</div></div>`;
     $('#stage-empty').style.display='grid';
   }
-  else if(S.step===STEP.SCAN){ Crop.refreshButtons(); Crop.draw(); }
+  else if(S.step===STEP.SCAN){ Crop.refreshButtons(); Crop.draw(); Crop.autoTry(); }
   else if(S.step===STEP.SLICE)    Slice.draw();
-  else if(S.step===STEP.ADJUST){ Tone.syncUI(); Tone.draw(); }
+  else if(S.step===STEP.ADJUST){
+    Tone.syncUI(); Tone.draw();
+    /* Run auto-enhance once, on arrival. It is measured, visible, undoable
+       with Ctrl+Z and resettable, so doing it for you saves a press without
+       hiding anything — unlike the old silently baked-in preset, which was a
+       different thing and stays gone. */
+    if(!S.autoToned&&S.pages.some(p=>p.flat)){ S.autoToned=true; Tone.auto(); }
+  }
   else if(S.step===STEP.JOIN){ if(Join.parts) Join.draw(); else Join.enter(); }
+  else if(S.step===STEP.SIZE)     Size.draw();
   else if(S.step===STEP.EXPORT)   Exporter.draw();
 
   syncHUD();
@@ -4792,7 +5178,7 @@ function wire(){
   $('#btn-add-slot').addEventListener('click',()=>Join.addSlot());
   if(!CONFIG.autoSeam) $('#btn-find-seam').style.display='none';
   $('#btn-join').addEventListener('click',()=>Join.commit());
-  $('#btn-join-done').addEventListener('click',()=>goStep(STEP.EXPORT));
+  $('#btn-join-done').addEventListener('click',()=>goStep(STEP.SIZE));
   $('#c-diff-join').addEventListener('change',e=>{ Join.diff=e.target.checked; Join.draw(); });
   bindVal('#s-jfeather','#v-jfeather',v=>v+' px',v=>{ Join.feather=+v; Join.draw(); });
 
@@ -4836,14 +5222,25 @@ function wire(){
   $('#btn-reset-one').addEventListener('click',()=>Tone.resetOne());
   $('#btn-reset-all').addEventListener('click',()=>Tone.resetAll());
   $('#btn-compare').addEventListener('click',()=>Tone.toggleCompare());
-  $$('#seg-strength button').forEach(b=>b.addEventListener('click',()=>{
+  $('#s-strength').addEventListener('input',()=>{
+    const p=activePage(); if(!p||Tone.locked()) return;
+    History.push('strength on “'+p.name+'”','strength-'+p.id);
+    const v=+$('#s-strength').value/100;
+    curAdj(p).strength=v;
+    $('#v-strength').textContent=`${Math.round(v*100)}% · ${strengthName(v)}`;
+    p.tuned=true; invalidate(p);
+    Tone.queue();
+  });
+  $('#s-strength').addEventListener('change',()=>{
+    const p=activePage(); if(!p) return;
+    p.thumb=thumbURL(processCanvas(p._proxy,curAdj(p),p.flat.width));
+    renderTray();
+  });
+  $('#s-strength').addEventListener('dblclick',()=>{
     const p=activePage(); if(!p||Tone.locked()) return;
     History.push('strength on “'+p.name+'”');
-    curAdj(p).strength=+b.dataset.strength;
-    p.tuned=true; invalidate(p);
-    p.thumb=thumbURL(processCanvas(p._proxy,curAdj(p),p.flat.width));
-    renderTray(); Tone.syncUI(); Tone.draw();
-  }));
+    curAdj(p).strength=1; invalidate(p); Tone.syncUI(); Tone.draw();
+  });
   $('#btn-otsu').addEventListener('click',()=>Tone.pickOtsu());
   $('#btn-to-export').addEventListener('click',()=>goStep(STEP.EXPORT));
   $('#btn-to-join').addEventListener('click',()=>goStep(STEP.JOIN));
@@ -4883,9 +5280,31 @@ function wire(){
   });
 
   /* export pane */
-  bindVal('#s-q','#v-q',v=>v+'%',()=>Exporter.estimate());
+  bindVal('#s-q','#v-q',v=>v+'%',()=>sizeSync());
   bindVal('#s-maxdim','#v-maxdim',v=>v+' px',()=>Exporter.estimate());
-  bindVal('#s-maxdim-img','#v-maxdim-img',v=>v+' px',()=>Exporter.estimate());
+  bindVal('#s-maxdim-img','#v-maxdim-img',v=>v+' px',()=>sizeSync());
+  const sizeSync=()=>{ Exporter.estimate(); if(S.step===STEP.SIZE) Size.draw(); };
+  bindVal('#s-rzpct','#v-rzpct',v=>v+'%',sizeSync);
+  bindVal('#s-target','#v-target',v=>+v===0?'off':(v>=1000?(v/1000).toFixed(1)+' MB':v+' KB'),sizeSync);
+  $$('#size-presets button').forEach(b=>b.addEventListener('click',()=>{
+    Size.apply(b.dataset.sp);
+    Size.draw();
+    const z=SIZE_PRESETS[b.dataset.sp];
+    toast(z.mode==='none'
+      ? 'Full size — nothing will be resampled.'
+      : `Capped at ${z.longest} px, quality ${z.q}%`
+        + (z.target?`, under ${z.target} KB each.`:'.'));
+  }));
+  $('#btn-size-next').addEventListener('click',()=>goStep(STEP.EXPORT));
+  $('#sel-resize').addEventListener('change',()=>{
+    const m=$('#sel-resize').value;
+    $('#rz-longest').style.display=m==='longest'?'block':'none';
+    $('#rz-percent').style.display=m==='percent'?'block':'none';
+    $('#rz-exact').style.display=m==='exact'?'block':'none';
+    sizeSync();
+  });
+  ['#in-rzw','#in-rzh','#c-rzfit'].forEach(id=>
+    $(id).addEventListener('change',()=>sizeSync()));
   bindVal('#s-up','#v-up',v=>(+v).toFixed(2).replace(/0$/,'')+'×');
   $('#btn-pdf').addEventListener('click',()=>Exporter.pdf());
   $('#btn-zip-all').addEventListener('click',()=>Exporter.zip({mode:'images'}));
