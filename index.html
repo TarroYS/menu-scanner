@@ -923,11 +923,11 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <div class="grp">
         <div class="eyebrow">Size &amp; quality</div>
         <div class="choices" id="size-presets">
-          <button class="btn equal wide" data-sp="full">Full size</button>
-          <div class="exp-why">No cap and quality 97%. As close to your original file as a JPEG gets, and the largest.</div>
+          <button class="btn equal wide" data-sp="standard">Original size</button>
+          <div class="exp-why"><b>The default.</b> Resolution left exactly as the straightened page came out — nothing resampled. Quality 95%.</div>
 
-          <button class="btn equal wide" data-sp="standard">Standard</button>
-          <div class="exp-why">Capped at 4200&nbsp;px, quality 95%. <b>The default</b> — a phone photo passes through <b>without being resampled at all</b>.</div>
+          <button class="btn equal wide" data-sp="full">Original size, max quality</button>
+          <div class="exp-why">Same pixels, quality 100%. Bigger files, for when something downstream will re-compress.</div>
 
           <button class="btn equal wide" data-sp="half">Half size</button>
           <div class="exp-why">Capped at 2400&nbsp;px. Roughly a third of the file size.</div>
@@ -944,13 +944,13 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         <label class="field">
           <span class="lab"><span>How</span></span>
           <select id="sel-resize">
+            <option value="none">Leave at full size</option>
             <option value="longest">Cap the longest edge</option>
             <option value="percent">Scale by percent</option>
             <option value="exact">Exact width &amp; height</option>
-            <option value="none">Leave at full size</option>
           </select>
         </label>
-        <label class="field" id="rz-longest">
+        <label class="field" id="rz-longest" style="display:none">
           <span class="lab"><span>Longest edge</span><span class="val" id="v-maxdim-img">4200 px</span></span>
           <input type="range" id="s-maxdim-img" min="800" max="6000" step="100" value="4200">
         </label>
@@ -1185,7 +1185,7 @@ const EMPTY_PICK=pick(EMPTY_LINES);
 
 const APP={
   name:'Menu Scan',
-  version:'2.3',
+  version:'2.4',
   built:'2026-10-27',
   tagline:'photos to PDF & OCR'
 };
@@ -3036,12 +3036,24 @@ function homography(from,to){
 }
 function warpJS(srcCanvas,C,W,H){
   /* Pre-scale so getImageData never allocates the full frame when the output
-     is smaller. A stitched 5000x7000 board is ~140 MB of Uint8ClampedArray,
-     and this is the path that runs when OpenCV is NOT available. 1.25x the
-     output long edge leaves enough detail for bilinear sampling. */
+     is genuinely smaller. A stitched 5000x7000 board is ~140 MB of
+     Uint8ClampedArray, and this is the path that runs when OpenCV is off.
+
+     The ratio has to be measured against the QUAD, not the frame. The warp
+     only ever samples inside the quad, so what matters is how the output
+     compares to the quad's size in source pixels — not to the whole picture.
+     Measuring against the frame was badly wrong whenever the quad was a
+     small part of it: a menu letterboxed inside a phone screenshot occupies
+     about a quarter of the frame, and the old formula threw away 42% of the
+     linear resolution before sampling, then upscaled the remainder back to
+     fill the output. Measured on a real screenshot that left 8% of the fine
+     detail and 21.6 dB against a straight crop. */
   let src=srcCanvas, C2=C;
   const longest=Math.max(srcCanvas.width,srcCanvas.height);
-  const need=Math.max(W,H)*1.25/longest;
+  const quadLong=Math.max(
+    Math.max(dist(C[0],C[1]),dist(C[3],C[2])),
+    Math.max(dist(C[0],C[3]),dist(C[1],C[2])), 1);
+  const need=Math.max(W,H)*1.25/quadLong;
   if(need<1){
     src=scaleCanvas(srcCanvas,Math.max(64,Math.round(longest*clamp(need,0.05,1))));
     const kx=src.width/srcCanvas.width, ky=src.height/srcCanvas.height;
@@ -4336,11 +4348,14 @@ const PDF_FORMATS={ a4:[595.28,841.89], letter:[612,792] };
    the fine-tune section can never disagree, and "which one am I on" is
    answered by reading the sliders back rather than by a separate flag that
    could drift out of step. */
+/* The default does NOT touch resolution. Changing how many pixels a file has
+   is a decision, not a default — this step is where it gets made, and a job
+   that never opens it comes out at the size it went in. */
 const SIZE_PRESETS={
-  full    :{mode:'none',   longest:4000, q:97, target:0},
-  standard:{mode:'longest',longest:4200, q:95, target:0},
-  half    :{mode:'longest',longest:2400, q:86, target:0},
-  small   :{mode:'longest',longest:1600, q:82, target:400}
+  standard:{mode:'none',   longest:4200, q:95,  target:0},
+  full    :{mode:'none',   longest:4200, q:100, target:0},
+  half    :{mode:'longest',longest:2400, q:88,  target:0},
+  small   :{mode:'longest',longest:1600, q:82,  target:400}
 };
 
 const Size={
@@ -4377,6 +4392,12 @@ const Size={
   },
 
   draw(){
+    /* Keep the mode rows in step with the select, so a preset that switches
+       mode also switches which controls are on screen. */
+    const m=$('#sel-resize').value;
+    $('#rz-longest').style.display=m==='longest'?'block':'none';
+    $('#rz-percent').style.display=m==='percent'?'block':'none';
+    $('#rz-exact').style.display=m==='exact'?'block':'none';
     const pages=exportPages();
     const p=activePage();
     if(p&&p.flat){

@@ -6,7 +6,7 @@ Everything runs entirely client-side in the browser—no photos are ever uploade
 
 **Live Demo:** [https://tarroys.github.io/menu-scanner/](https://tarroys.github.io/menu-scanner/)
 
-**Current version:** v2.3 — long-press the app name in the tool (or press `?`) to see the exact version and build date of whatever copy you're looking at.
+**Current version:** v2.4 — long-press the app name in the tool (or press `?`) to see the exact version and build date of whatever copy you're looking at.
 
 ---
 
@@ -132,12 +132,25 @@ Size and compression have their own step (**5 — Resize**) with four preset but
 
 | Preset | Setting | Result on a phone photo |
 | --- | --- | --- |
-| **Full size** | No resize, quality 97% | Unchanged — nothing resampled |
-| **Standard** | 4200 px, quality 95% *(default)* | **Unchanged — passes through without a resample** |
-| **Half size** | 2400 px, quality 86% | 1800×2400, ~35% |
+| **Original size** *(default)* | No resize, quality 95% | **Unchanged — resolution is never touched** |
+| **Original size, max quality** | No resize, quality 100% | Unchanged, larger file |
+| **Half size** | 2400 px, quality 88% | 1800×2400, ~35% |
 | **Small** | 1600 px, quality 82%, ≤400 KB each | 1200×1600 |
 
+**Nothing outside this step ever changes an image's resolution.** Changing how many pixels a file has is a decision, so it is made here or not at all — a job that never opens step 5 exports at the size it came in.
+
 A **Fine tune** section holds the individual controls: resize by longest edge, percent, or exact width & height (fit inside or stretch to); quality; a per-image size limit; and lossless PNG. The sliders remain the single source of truth—a preset simply sets them, and which button is highlighted is worked out by reading them back, so the two can never disagree. Hand-tuning anything reads as *Custom*.
+
+### The Warp Samples the Quad, Not the Frame
+
+`warpJS` pre-scales the source before sampling, so `getImageData` never allocates a full 140 MB frame for a small output. That ratio has to be measured against the **quad** — the warp only ever samples inside it — not against the whole picture.
+
+Measuring against the frame was badly wrong whenever the quad was a small part of it. A menu letterboxed inside a phone screenshot occupies about a quarter of the frame, so the old formula discarded 42% of the linear resolution *before* sampling, then upscaled the remainder to fill the output:
+
+| | Detail retained | PSNR vs a straight crop |
+| --- | --- | --- |
+| Measured against the frame | 8% | 21.6 dB |
+| **Measured against the quad** | **100%** | **99 dB (pixel-identical)** |
 
 ### The Resample Dead-Band
 
@@ -159,7 +172,7 @@ The PDF keeps its own separate cap:
 
 | Output | Default Limit | Why |
 | --- | --- | --- |
-| **Image** (longest edge) | `4200 px` | Set *above* typical phone resolution (4032 px) so a phone photo is never resampled at all. |
+| **Image** (longest edge) | *no cap by default* | Resolution is only changed from the Resize step. The 4200 px cap is available there, set above typical phone resolution. |
 | **PDF** (longest edge) | `2600 px` | The PDF is for reading and does not need full sensor resolution. |
 | **JPEG Quality** | `95%` | Matches what phone cameras typically write, so re-encoding is near-idempotent — measured at 61 dB PSNR against the source. |
 
@@ -191,6 +204,7 @@ Only 1.0 onward carry a version string in the file; the 0.x labels are applied r
 
 | Version | Updates |
 | --- | --- |
+| **2.4** | **Fixed: cropping a letterboxed screenshot destroyed its detail.** `warpJS` sized its pre-scale against the source *frame* rather than the *quad* it actually samples, so a menu occupying a quarter of a screenshot lost 42% of its linear resolution before the warp, then got upscaled back — 8% of the fine detail and 21.6 dB. Now pixel-identical for a 1:1 crop. **Resolution is no longer changed by default**: the Resize step is the only place it happens, and its default is *Original size*. |
 | **2.3** | **Fixed: the default resolution cap was softening every export.** Capping a 4032 px photo at 4000 px is a 0.992× resample — 1.6% fewer pixels for 18–51% of the fine detail, depending on the browser's filter. Added a **resample dead-band**: any trim under 3% is skipped entirely. Cap raised to **4200 px** (above phone resolution) and quality to **95%**, which matches what cameras write and makes the re-encode near-idempotent. Measured end-to-end on a 12 MP photo: **61 dB PSNR, no resample, 100% of the original file size** — up from a resampled 2.43 MB at 82% detail. |
 | **2.2** | Resize step reduced to **four preset buttons** (Full size / Standard / Half size / Small) with every slider moved into a collapsed **Fine tune** section. The sliders stay the single source of truth, so buttons and fine-tuning can never disagree; hand-tuning shows as *Custom*. |
 | **2.1** | Resize and compress moved out of a collapsed disclosure into **their own step (5 of 6)**, with a live table showing exact per-page output dimensions. Defaults verified byte-identical to before: same pixels, same resample count, compress pass never runs when the limit is off. |
