@@ -6,7 +6,7 @@ Everything runs entirely client-side in the browser—no photos are ever uploade
 
 **Live Demo:** [https://tarroys.github.io/menu-scanner/](https://tarroys.github.io/menu-scanner/)
 
-**Current version:** v2.2 — long-press the app name in the tool (or press `?`) to see the exact version and build date of whatever copy you're looking at.
+**Current version:** v2.3 — long-press the app name in the tool (or press `?`) to see the exact version and build date of whatever copy you're looking at.
 
 ---
 
@@ -132,12 +132,26 @@ Size and compression have their own step (**5 — Resize**) with four preset but
 
 | Preset | Setting | Result on a phone photo |
 | --- | --- | --- |
-| **Full size** | No resize, quality 96% | Unchanged — nothing resampled |
-| **Standard** | 4000 px, quality 92% *(default)* | 3000×4000, ~98% of the pixels |
+| **Full size** | No resize, quality 97% | Unchanged — nothing resampled |
+| **Standard** | 4200 px, quality 95% *(default)* | **Unchanged — passes through without a resample** |
 | **Half size** | 2400 px, quality 86% | 1800×2400, ~35% |
 | **Small** | 1600 px, quality 82%, ≤400 KB each | 1200×1600 |
 
 A **Fine tune** section holds the individual controls: resize by longest edge, percent, or exact width & height (fit inside or stretch to); quality; a per-image size limit; and lossless PNG. The sliders remain the single source of truth—a preset simply sets them, and which button is highlighted is worked out by reading them back, so the two can never disagree. Hand-tuning anything reads as *Custom*.
+
+### The Resample Dead-Band
+
+Any resample runs a reconstruction filter over every pixel, and that filter attenuates high frequencies whether the ratio is 0.3 or 0.99. At 0.99 you pay the entire softening cost for almost none of the size saving.
+
+Measured on a 4032 px phone photo capped at 4000 px — a 1.6% pixel reduction:
+
+| Filter | Fine detail retained |
+| --- | --- |
+| Lanczos | 82% |
+| Bicubic | 70% |
+| Bilinear | 49% |
+
+Browsers sit somewhere between those. `scaleCanvas` therefore skips any trim smaller than 3% (`RESAMPLE_DEADBAND = 0.97`), and `Size.outFor` mirrors the same rule so the preview table can't promise a resize that doesn't happen.
 
 The **size limit** lowers quality only as far as it must. Past a floor of q0.55 it sheds resolution instead, because a 12 MP page will not fit in 200 KB at any quality worth having, and JPEG mush looks worse than a smaller sharp picture.
 
@@ -145,9 +159,9 @@ The PDF keeps its own separate cap:
 
 | Output | Default Limit | Why |
 | --- | --- | --- |
-| **Image** (longest edge) | `4000 px` | A phone photo is ~4000 px. Exports are mostly untouched. Resolution is worth the file size for OCR parsers. |
+| **Image** (longest edge) | `4200 px` | Set *above* typical phone resolution (4032 px) so a phone photo is never resampled at all. |
 | **PDF** (longest edge) | `2600 px` | The PDF is for reading and does not need full sensor resolution. |
-| **JPEG Quality** | `92%` | Visually identical to original text, roughly 1/10th the size of PNG. |
+| **JPEG Quality** | `95%` | Matches what phone cameras typically write, so re-encoding is near-idempotent — measured at 61 dB PSNR against the source. |
 
 ---
 
@@ -177,6 +191,7 @@ Only 1.0 onward carry a version string in the file; the 0.x labels are applied r
 
 | Version | Updates |
 | --- | --- |
+| **2.3** | **Fixed: the default resolution cap was softening every export.** Capping a 4032 px photo at 4000 px is a 0.992× resample — 1.6% fewer pixels for 18–51% of the fine detail, depending on the browser's filter. Added a **resample dead-band**: any trim under 3% is skipped entirely. Cap raised to **4200 px** (above phone resolution) and quality to **95%**, which matches what cameras write and makes the re-encode near-idempotent. Measured end-to-end on a 12 MP photo: **61 dB PSNR, no resample, 100% of the original file size** — up from a resampled 2.43 MB at 82% detail. |
 | **2.2** | Resize step reduced to **four preset buttons** (Full size / Standard / Half size / Small) with every slider moved into a collapsed **Fine tune** section. The sliders stay the single source of truth, so buttons and fine-tuning can never disagree; hand-tuning shows as *Custom*. |
 | **2.1** | Resize and compress moved out of a collapsed disclosure into **their own step (5 of 6)**, with a live table showing exact per-page output dimensions. Defaults verified byte-identical to before: same pixels, same resample count, compress pass never runs when the limit is off. |
 | **2.0** | **Auto edge detection back on, confidence-gated.** **Auto-enhance runs on arriving at Adjust** (undoable, resettable). **Strength became a 0–140% slider** with four named stops. **A single page exports as an image, not a zip.** **Resize** by longest edge / percent / exact dimensions, and **compress to a size limit** that prefers shedding resolution over destroying quality. |
