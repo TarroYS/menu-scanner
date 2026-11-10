@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Client menus never leave this machine, so the page is not allowed to talk to
+     the network at all: no fetch/XHR/WebSocket/beacon (connect-src), no remote
+     images (img-src), no form posts. Scripts may come only from this page — plus
+     the optional OpenCV bundle, which is off unless CONFIG.useOpenCV is set.
+     GitHub Pages cannot send headers, so the policy lives in this meta tag. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://docs.opencv.org; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <title>Menu Scan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -620,8 +627,6 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
     <div class="rail-right">
       <div class="libs" id="libs">
         <span class="lib load" data-lib="cv" id="lib-cv"><i></i>OpenCV</span>
-        <span class="lib load" data-lib="jspdf"><i></i>jsPDF</span>
-        <span class="lib load" data-lib="jszip"><i></i>JSZip</span>
       </div>
     </div>
   </header>
@@ -923,11 +928,11 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <div class="grp">
         <div class="eyebrow">Size &amp; quality</div>
         <div class="choices" id="size-presets">
-          <button class="btn equal wide" data-sp="standard">Original size</button>
-          <div class="exp-why"><b>The default.</b> Resolution left exactly as the straightened page came out — nothing resampled. Quality 95%.</div>
+          <button class="btn equal wide" data-sp="original">Original quality</button>
+          <div class="exp-why"><b>The default.</b> Nothing resampled. A photo you did not change goes out as the <b>original file</b>; a changed page as JPEG 100% with full colour detail, and a PNG stays PNG.</div>
 
-          <button class="btn equal wide" data-sp="full">Original size, max quality</button>
-          <div class="exp-why">Same pixels, quality 100%. Bigger files, for when something downstream will re-compress.</div>
+          <button class="btn equal wide" data-sp="standard">Original size, smaller files</button>
+          <div class="exp-why">Same pixels at JPEG 95% — roughly a third of the size, but colour detail is halved (4:2:0) and changed pages are re-compressed.</div>
 
           <button class="btn equal wide" data-sp="half">Half size</button>
           <div class="exp-why">Capped at 2400&nbsp;px. Roughly a third of the file size.</div>
@@ -970,8 +975,8 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
 
         <div class="eyebrow" style="margin-top:16px">Compress</div>
         <label class="field">
-          <span class="lab"><span>Quality</span><span class="val" id="v-q">95%</span></span>
-          <input type="range" id="s-q" min="60" max="100" step="1" value="95">
+          <span class="lab"><span>Quality</span><span class="val" id="v-q">100%</span></span>
+          <input type="range" id="s-q" min="60" max="100" step="1" value="100">
         </label>
         <label class="field">
           <span class="lab"><span>Size limit per image</span><span class="val" id="v-target">off</span></span>
@@ -1031,14 +1036,19 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       <details class="adv">
         <summary>Quality and size</summary>
 
-        <div class="note" style="margin-bottom:12px">Resizing and compression are on step&nbsp;5, <b>Resize</b>.</div>
+        <div class="note" style="margin-bottom:12px">Quality, resizing and lossless PNG are on step&nbsp;5, <b>Resize</b> — the PDF uses the same quality and embeds exactly the same image data.</div>
         <label class="field">
-          <span class="lab"><span>PDF longest edge</span><span class="val" id="v-maxdim">2600 px</span></span>
-          <input type="range" id="s-maxdim" min="1200" max="4200" step="100" value="2600">
+          <span class="lab"><span>PDF resolution</span></span>
+          <select id="sel-pdf-cap">
+            <option value="0" selected>Full resolution (default)</option>
+            <option value="4200">Cap at 4200 px</option>
+            <option value="3200">Cap at 3200 px</option>
+            <option value="2600">Cap at 2600 px — lighter</option>
+            <option value="2000">Cap at 2000 px</option>
+            <option value="1600">Cap at 1600 px — for email</option>
+          </select>
         </label>
-        <div class="note" style="margin-bottom:12px">The PDF is for reading, so it does not need the full sensor. Lower this if the PDF is too heavy to attach.</div>
-        <div class="note">JPEG at 92% is visually identical to the original on menu text and roughly a tenth the size of PNG. Turn on lossless only if the OCR run actually needs it.</div>
-        <label class="check" style="margin-top:8px"><input type="checkbox" id="c-lossless"> Lossless PNG (much larger files)</label>
+        <div class="note" style="margin-bottom:12px">Only cap it if the PDF is too heavy to upload or attach — a cap resamples every page.</div>
         <label class="check"><input type="checkbox" id="c-include-full" checked> Include full pages in the OCR folder</label>
         <label class="field" style="margin-top:8px">
           <span class="lab"><span>PDF page format</span></span>
@@ -1054,7 +1064,6 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         </label>
       </details>
 
-      <div class="note warn" id="fallback-note" style="display:none;margin-top:11px">A library did not load, so export is using the built-in basic writers. The PDF will be JPEG regardless of the lossless setting.</div>
 
       <div class="grp">
         <div class="eyebrow">Job summary</div>
@@ -1185,8 +1194,8 @@ const EMPTY_PICK=pick(EMPTY_LINES);
 
 const APP={
   name:'Menu Scan',
-  version:'2.4',
-  built:'2026-10-27',
+  version:'2.5',
+  built:'2026-11-09',
   tagline:'photos to PDF & OCR'
 };
 
@@ -1198,6 +1207,11 @@ const $  = (s,r)=> (r||document).querySelector(s);
 const $$ = (s,r)=> Array.from((r||document).querySelectorAll(s));
 const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
 const uid = (()=>{let n=0;return p=>`${p}${++n}`;})();
+/* Every page name comes from a FILE name, and file names are attacker-shaped
+   input: a photo forwarded as `<img src=x onerror=…>.jpg` ran its script the
+   moment it was dropped in, because names went into innerHTML raw. Anything
+   that did not come from this file goes through esc() on its way into HTML. */
+const esc = s=> String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const raf = ()=> new Promise(r=>requestAnimationFrame(()=>r()));
 const sleep = ms=> new Promise(r=>setTimeout(r,ms));
 
@@ -1255,10 +1269,16 @@ function copyCanvas(src){
    1800 lines above its declaration is a temporal-dead-zone trap waiting for
    whoever calls scaleCanvas at module scope. */
 const RESAMPLE_DEADBAND=0.97;
+/* Long edge of the interactive preview. Spatial kernels in the tone pipeline
+   are expressed relative to this, so the preview predicts the export. */
+const PROXY_LONG=1400;
 
+/* Returns `src` ITSELF when nothing needs scaling (it used to return a full
+   copy — 48 MB per call for a phone photo). No caller writes into the
+   result; anything that frees canvases checks ownership first. */
 function scaleCanvas(src,maxDim){
   const m=Math.max(src.width,src.height);
-  if(m<=maxDim) return copyCanvas(src);
+  if(m<=maxDim) return src;
   const k=maxDim/m;
   /* Dead-band on near-unity resamples.
 
@@ -1271,7 +1291,7 @@ function scaleCanvas(src,maxDim){
 
      So below a 3% trim, keep the pixels. The cap is there to stop a 6000 px
      monster, not to shave 32 px off a phone photo. */
-  if(k>=RESAMPLE_DEADBAND) return copyCanvas(src);
+  if(k>=RESAMPLE_DEADBAND) return src;
   const c=mkCanvas(src.width*k,src.height*k);
   const g=ctx2d(c); g.imageSmoothingQuality='high';
   g.drawImage(src,0,0,c.width,c.height);
@@ -1285,11 +1305,20 @@ function thumbURL(src,size){
   g.drawImage(src,0,0,c.width,c.height);
   return c.toDataURL('image/jpeg',0.72);
 }
+/* toBlob hands back NULL, not an error, when the encoder refuses (a canvas
+   past the browser's size limit, or one that could not be allocated). The
+   old version resolved that null and the export died three calls later with
+   a TypeError nobody could read. Fail here, and say why. */
 function canvasBlob(c,type,q){
-  return new Promise(res=>{
-    if(c.toBlob) c.toBlob(b=>res(b),type,q);
-    else { const d=c.toDataURL(type,q), bin=atob(d.split(',')[1]), u=new Uint8Array(bin.length);
-           for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i); res(new Blob([u],{type})); }
+  return new Promise((res,rej)=>{
+    const fail=()=>rej(new Error(`The browser could not encode a ${c.width}×${c.height} image — it is probably too large. Pick a smaller size on step 5.`));
+    if(c.toBlob){ c.toBlob(b=>b&&b.size?res(b):fail(),type,q); return; }
+    try{
+      const d=c.toDataURL(type,q); if(!d||d.length<30) return fail();
+      const bin=atob(d.split(',')[1]), u=new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+      res(new Blob([u],{type}));
+    }catch(e){ fail(); }
   });
 }
 function download(blob,name){
@@ -1298,7 +1327,13 @@ function download(blob,name){
   setTimeout(()=>URL.revokeObjectURL(u),4000);
 }
 function pad(n,w){ return String(n).padStart(w||2,'0'); }
-function safeName(s){ return (s||'').replace(/[^\w\-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||'region'; }
+/* Unicode-aware: a photo called 菜单第一页.jpg used to come out as "region"
+   because \w is ASCII-only. Letters and digits of any script survive; the ZIP
+   writer flags the names as UTF-8 so they unpack correctly on Windows too. */
+function safeName(s,fallback){
+  const t=String(s||'').normalize('NFC').replace(/[^\p{L}\p{N}\-]+/gu,'_').replace(/^_+|_+$/g,'');
+  return Array.from(t).slice(0,40).join('')||fallback||'page';
+}
 
 const IMG_EXT=/\.(png|jpe?g|webp|bmp|gif|avif|heic|heif|tiff?)$/i;
 
@@ -1306,14 +1341,24 @@ const IMG_EXT=/\.(png|jpe?g|webp|bmp|gif|avif|heic|heif|tiff?)$/i;
    Phone photos carry an orientation flag. createImageBitmap with
    imageOrientation:'from-image' honours it; the <img> fallback does
    too in current browsers. Skipping this gives sideways menus.      */
+/* Transparent pixels are composited onto WHITE at decode. JPEG has no alpha,
+   and the browser's encoder blends transparency onto BLACK (measured: a fully
+   transparent pixel exports as 0,0,0) — so a PNG with a transparent margin
+   came out of every JPEG export with a black frame. For opaque images the
+   fill is fully overwritten, so their pixels are unchanged. */
+function opaqueCanvas(src,w,h){
+  const c=mkCanvas(w,h), g=ctx2d(c,{});
+  if(c.width!==w||c.height!==h||!g) throw new Error('image too large for this browser');
+  g.fillStyle='#ffffff'; g.fillRect(0,0,w,h);
+  g.drawImage(src,0,0);
+  return c;
+}
 async function decodeImage(file){
   if(window.createImageBitmap){
     try{
       const bm=await createImageBitmap(file,{imageOrientation:'from-image'});
-      const c=mkCanvas(bm.width,bm.height);
-      ctx2d(c,{}).drawImage(bm,0,0);
-      if(bm.close) bm.close();
-      return c;
+      try{ return opaqueCanvas(bm,bm.width,bm.height); }
+      finally{ if(bm.close) bm.close(); }
     }catch(e){ /* fall through */ }
   }
   const url=URL.createObjectURL(file);
@@ -1324,18 +1369,147 @@ async function decodeImage(file){
       im.onerror=()=>rej(new Error('Could not decode '+file.name));
       im.src=url;
     });
-    const c=mkCanvas(img.naturalWidth,img.naturalHeight);
-    ctx2d(c,{}).drawImage(img,0,0);
-    return c;
+    return opaqueCanvas(img,img.naturalWidth,img.naturalHeight);
   } finally{ URL.revokeObjectURL(url); }
+}
+
+/* ── The original file, kept for passthrough ───────────────────────
+   Re-encoding is never free. Even at quality 100 a JPEG round trip moves
+   pixels, and below 100 the browser also halves the colour resolution
+   (Chrome writes 4:2:0 for every quality under 1.0 — measured, not assumed).
+   So a page whose pixels were never changed is exported as the ORIGINAL
+   compressed data, byte for byte. Only container metadata is removed —
+   EXIF/XMP carry GPS position, device and owner details that have no
+   business travelling with a menu — while the ICC colour profile and every
+   byte of image data stay exactly as the camera wrote them.
+
+   Passthrough is only offered when a strict reader will show the file the
+   way this tool did: upright (EXIF orientation 1 or none — many OCR
+   pipelines ignore the tag), 3-channel, and the same size as the decode. */
+const ascii=(b,i,n)=>{ let s=''; for(let k=0;k<n&&i+k<b.length;k++) s+=String.fromCharCode(b[i+k]); return s; };
+const u16be=(b,i)=>(b[i]<<8)|b[i+1];
+const u32be=(b,i)=>((b[i]<<24)|(b[i+1]<<16)|(b[i+2]<<8)|b[i+3])>>>0;
+function concatBytes(parts){
+  const n=parts.reduce((a,p)=>a+p.length,0), out=new Uint8Array(n); let o=0;
+  for(const p of parts){ out.set(p,o); o+=p.length; }
+  return out;
+}
+function exifOrientation(b,t,end){
+  if(t+8>end) return 0;
+  const le=b[t]===0x49&&b[t+1]===0x49; if(!le&&!(b[t]===0x4D&&b[t+1]===0x4D)) return 0;
+  const r16=k=>le?(b[k]|(b[k+1]<<8)):u16be(b,k);
+  const r32=k=>le?((b[k]|(b[k+1]<<8)|(b[k+2]<<16)|(b[k+3]<<24))>>>0):u32be(b,k);
+  const ifd=t+r32(t+4); if(ifd+2>end) return 0;
+  for(let e=0,n=r16(ifd);e<n;e++){
+    const k=ifd+2+e*12; if(k+12>end) break;
+    if(r16(k)===0x0112) return r16(k+8);
+  }
+  return 0;
+}
+/* Walk the marker segments up to the first scan, then find the real EOI by
+   skipping entropy-coded data AND the DHT/SOS segments that sit between the
+   scans of a progressive file (their payloads can contain FF D9). */
+function jpegInfo(b){
+  if(b.length<4||b[0]!==0xFF||b[1]!==0xD8) return null;
+  const J={w:0,h:0,comps:0,orientation:1,icc:[],segs:[],sosAt:-1,eoiEnd:-1};
+  let i=2;
+  while(i+4<=b.length){
+    if(b[i]!==0xFF) return null;
+    const m=b[i+1];
+    if(m===0xFF){ i++; continue; }
+    if(m===0x01||(m>=0xD0&&m<=0xD8)){ i+=2; continue; }
+    if(m===0xD9) return null;                             // EOI before any scan
+    const L=u16be(b,i+2); if(L<2||i+2+L>b.length) return null;
+    const seg={m,start:i,end:i+2+L}, p=i+4;
+    if(m===0xDA){
+      J.sosAt=i;
+      for(let j=seg.end;j+1<b.length;){
+        if(b[j]!==0xFF){ j++; continue; }
+        const n=b[j+1];
+        if(n===0xFF){ j++; continue; }
+        if(n===0x00||(n>=0xD0&&n<=0xD7)){ j+=2; continue; }
+        if(n===0xD9){ J.eoiEnd=j+2; break; }
+        if(j+4>b.length) break;
+        j+=2+u16be(b,j+2);
+      }
+      break;
+    }
+    J.segs.push(seg);
+    if(m>=0xC0&&m<=0xCF&&m!==0xC4&&m!==0xC8&&m!==0xCC){ J.sof=m; J.h=u16be(b,p+1); J.w=u16be(b,p+3); J.comps=b[p+5]; }
+    else if(m===0xE1&&ascii(b,p,6)==='Exif\0\0'){ const o=exifOrientation(b,p+6,seg.end); if(o) J.orientation=o; }
+    else if(m===0xE2&&ascii(b,p,12)==='ICC_PROFILE\0') J.icc.push({seq:b[p+12],data:b.subarray(p+14,seg.end)});
+    i=seg.end;
+  }
+  return (J.eoiEnd>0&&J.w&&J.h&&J.comps)?J:null;
+}
+/* Keep what decoding and colour need (tables, frame, JFIF, ICC, Adobe);
+   drop everything else (EXIF/XMP, IPTC, MPF and the extra images it points
+   at, maker notes, comments). Image data is copied untouched. */
+function jpegStrip(b,J){
+  const keep=s=>{
+    if(s.m===0xE0||s.m===0xEE) return true;                       // JFIF, Adobe
+    if(s.m===0xE2) return ascii(b,s.start+4,12)==='ICC_PROFILE\0';
+    if(s.m>=0xE1&&s.m<=0xEF) return false;                        // other APPn
+    return s.m!==0xFE;                                            // COM
+  };
+  return concatBytes([b.subarray(0,2),...J.segs.filter(keep).map(s=>b.subarray(s.start,s.end)),
+                      b.subarray(J.sosAt,J.eoiEnd)]);
+}
+function jpegICC(J){
+  if(!J||!J.icc.length) return null;
+  return concatBytes(J.icc.slice().sort((a,b)=>a.seq-b.seq).map(x=>x.data));
+}
+function pngInfo(b){
+  const sig=[0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A];
+  if(b.length<33||sig.some((v,k)=>b[k]!==v)) return null;
+  const P={w:0,h:0,exif:false,chunks:[]}; let i=8;
+  while(i+12<=b.length){
+    const len=u32be(b,i), type=ascii(b,i+4,4), end=i+12+len;
+    if(end>b.length) return null;
+    if(type==='IHDR'){ P.w=u32be(b,i+8); P.h=u32be(b,i+12); }
+    if(type==='eXIf') P.exif=true;
+    P.chunks.push({type,start:i,end});
+    i=end;
+    if(type==='IEND') return (P.w&&P.h)?P:null;
+  }
+  return null;
+}
+const pngStrip=(b,P)=>concatBytes([b.subarray(0,8),
+  ...P.chunks.filter(c=>!/^(tEXt|zTXt|iTXt|tIME|eXIf)$/.test(c.type)).map(c=>b.subarray(c.start,c.end))]);
+
+async function sourceInfo(file,canvas){
+  let b;
+  try{ b=new Uint8Array(await file.arrayBuffer()); }catch(e){ return {kind:'other',lossless:false,pass:null}; }
+  const J=jpegInfo(b);
+  if(J){
+    // Huffman baseline / extended / progressive only: what every reader, and PDF's /DCTDecode, takes
+    const ok=J.orientation===1&&J.comps===3&&J.sof<=0xC2&&J.w===canvas.width&&J.h===canvas.height;
+    return {kind:'jpeg',lossless:false,
+            pass:ok?{type:'image/jpeg',ext:'jpg',bytes:jpegStrip(b,J),w:J.w,h:J.h,icc:jpegICC(J)}:null};
+  }
+  const P=pngInfo(b);
+  if(P){
+    const ok=!P.exif&&P.w===canvas.width&&P.h===canvas.height;
+    return {kind:'png',lossless:true,pass:ok?{type:'image/png',ext:'png',bytes:pngStrip(b,P),w:P.w,h:P.h}:null};
+  }
+  return {kind:'other',lossless:/\.(gif|bmp)$/i.test(file.name)||/^image\/(gif|bmp|x-ms-bmp)$/i.test(file.type),pass:null};
 }
 
 /* ════════════════════════════════════════════════════════════════
    0b · LIBRARY LOADER
-   Each library is optional-with-consequences. The rail shows real
-   status, and every feature that needs one checks before running.
+   Only OpenCV is left, and it is off by default.
+
+   jsPDF and JSZip were removed in 2.5. They were fetched from jsDelivr
+   (falling back to unpkg) with no integrity hashes, into a page that holds
+   client photos — whoever controls either CDN could run code here — and
+   they bought nothing the
+   built-in writers cannot do: images are STORED in the zip either way,
+   and the PDF only ever embedded JPEGs. Worse, the jsPDF path re-encoded
+   every page through toDataURL and capped it at 2600 px, so the PDF was
+   the lowest-quality thing this tool produced. The built-in writers now
+   embed the exact bytes the image export writes.
    ════════════════════════════════════════════════════════════════ */
-const LIB={cv:false,jspdf:false,jszip:false};
+const LIB={cv:false};
 
 function setLib(name,state){
   LIB[name]=(state==='ok');
@@ -1403,21 +1577,6 @@ async function loadLibraries(){
     }
   })();
 
-  const jobs=[
-    loadFirst(['https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-               'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'],
-              ()=>!!(window.jspdf&&window.jspdf.jsPDF),8000)
-      .then(()=>setLib('jspdf','ok'))
-      .catch(()=>{setLib('jspdf','fail');}),
-
-    loadFirst(['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-               'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js'],
-              ()=>!!window.JSZip,8000)
-      .then(()=>setLib('jszip','ok'))
-      .catch(()=>{setLib('jszip','fail');})
-  ];
-
-  await Promise.all(jobs);
   await cvJob;
   if(S.step===STEP.SCAN) Crop.refreshButtons();
 }
@@ -1498,8 +1657,17 @@ const CONFIG={
      Set this true to get the faster WASM warp plus the OpenCV versions of
      Magic enhance and CLAHE. Everything still works either way — every
      OpenCV path in this file has a JS fallback that is exercised by the
-     checks. */
+     checks. The Content-Security-Policy in <head> already allows
+     docs.opencv.org and WASM; if the bundle is ever self-hosted, nothing
+     there needs to change. */
   useOpenCV:false,
+
+  /* Auto-enhance on arriving at Adjust. It CHANGES PIXELS (flatten, contrast,
+     sharpen) — that is its job, but it means no page that has been through
+     Adjust is the camera's image any more. Set false if exports must be the
+     photo itself; "Reset all" on Adjust does the same for one job. Pages
+     with no tone change are exported as the original file (see sourceInfo). */
+  autoEnhance:true,
 
   /* Flourishes. The session summary and the About card are NOT gated here —
      they are information, and one of them is how you spot a stale deploy.
@@ -1555,6 +1723,9 @@ function newPage(canvas,name){
     cornersVerified:false,       // did a human actually check the corners?
     autoTried:false,             // auto-detect has already had its one go
     corners:null,                // 4 pts in raw-image space, TL TR BR BL
+    asIs:false,                  // flat IS raw: used as-is, never warped
+    src:null,                    // sourceInfo(): original bytes for passthrough
+    autoSeen:false,              // arrival auto-enhance has looked at this page
     rotate:0,
     flat:null,                   // warped, full resolution
     /* Untouched. DEFAULT_ADJ is a genuine no-op: processCanvas skips the
@@ -1595,6 +1766,7 @@ const History={
                       W:p.geom.W,H:p.geom.H,rot:p.geom.rot,turns:p.geom.turns},
         rotate:p.rotate, turns:p.turns, adj:Object.assign({},p.adj),
         include:p.include, consumed:p.consumed, tuned:p.tuned,
+        asIs:p.asIs, src:p.src, autoSeen:p.autoSeen,
         cornersVerified:p.cornersVerified, flattenedAt:p.flattenedAt,
         joinedFrom:p.joinedFrom&&p.joinedFrom.slice(),
         sources:(p.sources||[]).slice(),
@@ -1613,6 +1785,29 @@ const History={
     this.undoStack.push({label,state:this.snap()});
     if(this.undoStack.length>this.max) this.undoStack.shift();
     this.redoStack.length=0;
+    this.trim();
+  },
+
+  /* Thirty steps is a count, not a memory budget. Every re-flatten, turn and
+     rotation-slider release leaves a full-resolution canvas behind in the
+     stack (36-48 MB each for a phone photo), so a session spent fiddling the
+     deskew slider could pin well over a gigabyte that is invisible to the
+     JS heap — the classic silent tab crash. Drop the oldest steps once the
+     canvases ONLY the history still holds pass the budget. */
+  BUDGET:900e6,
+  trim(){
+    const live=new Set();
+    S.pages.forEach(p=>[p.raw,p.flat].forEach(c=>c&&live.add(c)));
+    const held=()=>{
+      const seen=new Set(); let bytes=0;
+      for(const e of this.undoStack.concat(this.redoStack))
+        for(const sp of e.state.pages) for(const c of [sp.raw,sp.flat]){
+          if(!c||live.has(c)||seen.has(c)) continue;
+          seen.add(c); bytes+=c.width*c.height*4;
+        }
+      return bytes;
+    };
+    while(this.undoStack.length>1&&held()>this.BUDGET) this.undoStack.shift();
   },
 
   apply(st){
@@ -1626,12 +1821,14 @@ const History={
                        W:sp.geom.W,H:sp.geom.H,rot:sp.geom.rot,turns:sp.geom.turns};
       p.rotate=sp.rotate; p.turns=sp.turns; p.adj=Object.assign({},sp.adj);
       p.include=sp.include; p.consumed=sp.consumed; p.tuned=sp.tuned;
+      p.asIs=!!sp.asIs; p.src=sp.src||null; p.autoSeen=!!sp.autoSeen;
       p.cornersVerified=sp.cornersVerified; p.flattenedAt=sp.flattenedAt;
       p.joinedFrom=sp.joinedFrom&&sp.joinedFrom.slice();
       p.sources=sp.sources.slice();
       p.regions=sp.regions.map(r=>Object.assign({},r));
+      // derived from flat, so rebuilt — but only when flat actually changed
+      if(p.flat!==(sp.flat||null)||!p._proxy) p._proxy=sp.flat?scaleCanvas(sp.flat,PROXY_LONG):null;
       p.flat=sp.flat||null;
-      p._proxy=p.flat?scaleCanvas(p.flat,1400):null;   // derived, so rebuilt
       invalidate(p);
       return p;
     });
@@ -1689,7 +1886,7 @@ function setFlat(p,canvas){
   p.flat=canvas;
   // a re-flatten (turn, deskew, re-crop) makes any prepared join stale
   if(Join.slots.includes(p.id)) Join.parts=null;
-  p._proxy=scaleCanvas(canvas,1400);
+  p._proxy=scaleCanvas(canvas,PROXY_LONG);
   invalidate(p);
   p.regions=p.regions.filter(r=>r.x<canvas.width&&r.y<canvas.height);
 }
@@ -1909,6 +2106,7 @@ const Inbox={
         try{
           const c=await decodeImage(f);
           const pg=newPage(c,f.name.replace(/\.[^.]+$/,''));
+          pg.src=await sourceInfo(f,c);
           pg.corners=insetCorners(c,0.06);
           pg.thumb=thumbURL(c);
           S.pages.push(pg); added.push(pg);
@@ -1934,7 +2132,7 @@ const Inbox={
 /* Force the joined edge to match EXACTLY.
 
    renderFlatAt scales the warp by a ratio, but the output size is not simply
-   that ratio: geom.W/H are the pre-deskew dimensions and rotateCrop then
+   that ratio: geom.W/H are the pre-deskew dimensions and a deskew then
    crops to the largest inscribed rectangle, so rounding leaves the shared
    edge a pixel or three out. Side by side that mismatch is a white sliver
    down one edge — the "blank space". Correcting it costs one resample of a
@@ -1952,13 +2150,42 @@ function fitShared(c,axis,target){
 }
 
 /* Re-run a page's warp at an arbitrary scale, straight from the original
-   pixels. One resample from source to final geometry. */
+   pixels — ONE resample from source to final geometry, deskew included.
+
+   The deskew used to be a second pass (rotateCrop: a bilinear drawImage of
+   the already-warped page). Measured on a 1.5° deskew that cost 4.2 dB
+   against a single high-quality resample. A rotation is just one more
+   projective map, so each output pixel is now traced back through rotation
+   and perspective together and sampled once.
+
+   A page used as-is has no geometry, but it is an identity quad over the
+   whole photo — so a join can still scale it from the original pixels
+   instead of upscaling the copy. */
 function renderFlatAt(p,k){
-  if(!p.geom||!p.raw) return k===1?p.flat:scaleCanvas(p.flat,Math.round(Math.max(p.flat.width,p.flat.height)*k));
-  const g=p.geom;
+  let g=p.geom;
+  if(!g){
+    if(k===1||!p.raw||!p.asIs) return k===1?p.flat:scaleCanvas(p.flat,Math.round(Math.max(p.flat.width,p.flat.height)*k));
+    g={corners:insetCorners(p.raw,0),W:p.raw.width,H:p.raw.height,rot:0,turns:0};
+  }
   const W=Math.max(8,Math.round(g.W*k)), H=Math.max(8,Math.round(g.H*k));
-  let out=cvReady()?warpCV(p.raw,g.corners,W,H):warpJS(p.raw,g.corners,W,H);
-  if(Math.abs(g.rot)>0.01) out=rotateCrop(out,g.rot);
+  const rot=Math.abs(g.rot)>0.01?g.rot:0;
+  let out;
+  if(!rot&&cvReady()) out=warpCV(p.raw,g.corners,W,H);
+  else{
+    const h=homography([{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}],g.corners);  // page plane -> photo
+    let M=[h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1], ow=W, oh=H;
+    if(rot){
+      /* Same crop rotateCrop made — the largest upright rectangle inside the
+         turned page — but expressed as a map from the cropped output back
+         into the page plane, then chained onto the perspective. */
+      const r=inscribedRect(W,H,rot); ow=r.w; oh=r.h;
+      const t=-rot*Math.PI/180, c=Math.cos(t), s=Math.sin(t);
+      M=mat3mul(M,[c,-s,W/2-(c*ow-s*oh)/2,
+                   s, c,H/2-(s*ow+c*oh)/2,
+                   0, 0,1]);
+    }
+    out=warpProjective(p.raw,M,ow,oh);
+  }
   if(g.turns) out=rotate90(out,g.turns);
   return out;
 }
@@ -1995,7 +2222,7 @@ const Pages={
       el.innerHTML=`<span class="seq">${p.include?seq:'–'}</span>
         <span class="grip">⠿ drag</span>
         <canvas class="th" data-th="${p.id}" style="height:${thumbH}px"></canvas>
-        <div class="nm" title="${p.name}">${p.name}</div>
+        <div class="nm" title="${esc(p.name)}">${esc(p.name)}</div>
         <div class="st"><span class="${p.flat?'yes':'no'}">${p.flat?'✓ straightened':'• to do'}</span>`
         +`<span>${p.joinedFrom?'joined':(p.consumed?'set aside':'')}</span></div>
         <div class="mv">
@@ -2124,7 +2351,7 @@ const Join={
     this.slots=this.slots.filter(id=>!id||pool.some(q=>q.id===id));
     while(this.slots.length<2) this.slots.push(null);
     const host=$('#join-slots'); host.innerHTML='';
-    const opts=pool.map((q,i)=>`<option value="${q.id}">${pad(i+1)} · ${q.name}</option>`).join('');
+    const opts=pool.map((q,i)=>`<option value="${q.id}">${pad(i+1)} · ${esc(q.name)}</option>`).join('');
     this.slots.forEach((id,i)=>{
       const row=document.createElement('label');
       row.className='field';
@@ -2331,7 +2558,7 @@ const Join={
       el.className='item'+(i===this.sel?' sel':'');
       el.innerHTML=`<span class="idx">${String.fromCharCode(65+i)}</span>`
         +`<span class="sw" style="background-image:url(${pg.thumb||''})"></span>`
-        +`<span class="nm">${pg.name}</span>`
+        +`<span class="nm">${esc(pg.name)}</span>`
         +`<span class="mt">${i===0?'fixed':'move'}</span>`;
       el.addEventListener('click',()=>{ this.sel=Math.max(1,i); this.draw(); });
       host.appendChild(el);
@@ -2446,6 +2673,9 @@ const Join={
     /* Carry the provenance through, so joining a join still shows every
        original photo that ended up in the page. */
     pg.sources=pages.reduce((acc,q)=>acc.concat(q.sources||[q.name]),[]);
+    /* A join is new pixels, so it can never pass through — but if every part
+       came from a lossless file it should stay lossless on the way out. */
+    pg.src={kind:'join',lossless:pages.every(q=>q.src&&q.src.lossless),pass:null};
     /* Tone is applied to the FINAL page, once, so parts cannot end up with
        different curves and step at a seam. Inherit part A's look. */
     pg.adj=Object.assign({},pages[0].adj);
@@ -2610,7 +2840,7 @@ const Crop={
       View.show(p.flat,52);
       const g=View.overlayCtx(); drawRulers(g);
       const done=S.pages.filter(x=>x.flat).length;
-      badge(`<b>${p.name}</b> · flattened to <b>${p.flat.width}×${p.flat.height}</b>`
+      badge(`<b>${esc(p.name)}</b> · flattened to <b>${p.flat.width}×${p.flat.height}</b>`
           + ` · ${done} of ${S.pages.length} done`);
       return;
     }
@@ -2658,7 +2888,7 @@ const Crop={
     if(live>=0) drawLoupe(g,C[live].x,C[live].y,this.touch);
 
     const o=this.outSize(p);
-    badge(`<b>${p.name}</b> · source ${p.raw.width}×${p.raw.height} · flattens to `
+    badge(`<b>${esc(p.name)}</b> · source ${p.raw.width}×${p.raw.height} · flattens to `
         + `<b>${o.W}×${o.H}</b>`
         + (p.turns?` · <b style="color:#00d3c0">turned ${p.turns*90}°</b>`:'')
         + (p.cornersVerified?'':' · <span style="color:#ffc247">corners unchecked</span>'));
@@ -2792,6 +3022,7 @@ const Crop={
       // turns are already baked into p.raw, so geometry carries none
       p.geom={corners:corners.map(c=>({x:c.x,y:c.y})), W, H, rot, turns:0};
       p.rotate=rot;
+      p.asIs=false;
       const out=renderFlatAt(p,1);
       setFlat(p,out);
       p.thumb=thumbURL(out);
@@ -2813,6 +3044,7 @@ const Crop={
     const p=activePage(); if(!p) return;
     History.push('use “'+p.name+'” as-is');
     p.geom=null;
+    p.asIs=true;
     p.corners=insetCorners(p.raw,0);
     p.cornersVerified=true;
     setFlat(p,p.raw);
@@ -3034,63 +3266,79 @@ function homography(from,to){
   }
   return A.map(r=>r[n]);
 }
-function warpJS(srcCanvas,C,W,H){
-  /* Pre-scale so getImageData never allocates the full frame when the output
-     is genuinely smaller. A stitched 5000x7000 board is ~140 MB of
-     Uint8ClampedArray, and this is the path that runs when OpenCV is off.
+const mat3mul=(A,B)=>[0,1,2].flatMap(r=>[0,1,2].map(c=>A[r*3]*B[c]+A[r*3+1]*B[3+c]+A[r*3+2]*B[6+c]));
 
-     The ratio has to be measured against the QUAD, not the frame. The warp
-     only ever samples inside the quad, so what matters is how the output
-     compares to the quad's size in source pixels — not to the whole picture.
-     Measuring against the frame was badly wrong whenever the quad was a
-     small part of it: a menu letterboxed inside a phone screenshot occupies
-     about a quarter of the frame, and the old formula threw away 42% of the
-     linear resolution before sampling, then upscaled the remainder back to
-     fill the output. Measured on a real screenshot that left 8% of the fine
-     detail and 21.6 dB against a straight crop. */
-  let src=srcCanvas, C2=C;
-  const longest=Math.max(srcCanvas.width,srcCanvas.height);
-  const quadLong=Math.max(
-    Math.max(dist(C[0],C[1]),dist(C[3],C[2])),
-    Math.max(dist(C[0],C[3]),dist(C[1],C[2])), 1);
-  const need=Math.max(W,H)*1.25/quadLong;
+/* Kept for callers that think in corners: quad -> W×H rectangle. */
+function warpJS(srcCanvas,C,W,H){
+  const h=homography([{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}],C);
+  return warpProjective(srcCanvas,[h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1],W,H);
+}
+
+/* M maps a point of the OUTPUT plane to the SOURCE plane, both in continuous
+   coordinates (pixel i covers [i, i+1)). Each output pixel is sampled at its
+   centre, u+0.5, and read back at source index x-0.5. The old warp sampled
+   pixel u at u itself — half a pixel off, enough to show at a join seam.
+
+   Catmull-Rom bicubic, not bilinear. At the ~1:1 scale a flatten runs at,
+   bilinear averages neighbours at every sub-pixel offset — it is a blur
+   filter — and it cost 2.2 dB against a single Lanczos resample on a menu
+   photo. Catmull-Rom interpolates exactly at whole pixels (an identity map
+   copies pixels unchanged) and keeps the edges of small print. */
+function warpProjective(srcCanvas,M,W,H){
+  /* Pre-scale so getImageData never allocates the full frame when the output
+     is genuinely smaller. Measured against what the output actually samples
+     (its footprint in the source), never against the whole frame: a menu
+     letterboxed in a screenshot is a quarter of the frame, and measuring
+     against the frame threw away 42% of its resolution (fixed in 2.4). */
+  const at=(X,Y)=>{ const d=M[6]*X+M[7]*Y+M[8]; return {x:(M[0]*X+M[1]*Y+M[2])/d, y:(M[3]*X+M[4]*Y+M[5])/d}; };
+  const F=[at(0,0),at(W,0),at(W,H),at(0,H)];
+  const footLong=Math.max(dist(F[0],F[1]),dist(F[3],F[2]),dist(F[0],F[3]),dist(F[1],F[2]),1);
+  const need=Math.max(W,H)*1.25/footLong;
+  let src=srcCanvas, m=M;
   if(need<1){
+    const longest=Math.max(srcCanvas.width,srcCanvas.height);
     src=scaleCanvas(srcCanvas,Math.max(64,Math.round(longest*clamp(need,0.05,1))));
     const kx=src.width/srcCanvas.width, ky=src.height/srcCanvas.height;
-    C2=C.map(q=>({x:q.x*kx,y:q.y*ky}));
+    m=[M[0]*kx,M[1]*kx,M[2]*kx, M[3]*ky,M[4]*ky,M[5]*ky, M[6],M[7],M[8]];
   }
-  const rect=[{x:0,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H}];
-  const h=homography(rect,C2);                      // output plane -> source plane
   const sg=ctx2d(src).getImageData(0,0,src.width,src.height);
   const sw=sg.width, sh=sg.height, sd=sg.data;
   const out=mkCanvas(W,H), og=ctx2d(out,{});
   const od=og.createImageData(W,H), dd=od.data;
-  /* Perspective-correct spans. The projection needs two divisions per pixel,
-     which dominates the loop. Evaluating it exactly at both ends of a short
-     span and interpolating between is the standard software-rasteriser trick:
-     the source position drifts by well under a pixel across 16 output pixels
-     at these angles, so it is visually exact while doing 1/16th the division
-     work. Verified against the exact formula, not assumed. */
+  /* Perspective-correct spans: the projection is evaluated exactly at both
+     ends of a 16-pixel span and interpolated between — the source position
+     drifts well under a pixel across a span at these angles, and it saves
+     15 of every 16 pairs of divisions. */
   const SPAN=16;
-  const h0=h[0],h1=h[1],h2=h[2],h3=h[3],h4=h[4],h5=h[5],h6=h[6],h7=h[7];
-  const xMax=sw-1.001, yMax=sh-1.001;
+  const a0=m[0],a1=m[1],a2=m[2],b0=m[3],b1=m[4],b2=m[5],c0=m[6],c1=m[7],c2=m[8];
+  const xMax=sw-1, yMax=sh-1;
   for(let v=0,o=0;v<H;v++){
-    const nx=h1*v+h2, ny=h4*v+h5, nd=h7*v+1;
+    const Yc=v+0.5, nx=a1*Yc+a2, ny=b1*Yc+b2, nd=c1*Yc+c2;
     let u=0;
     while(u<W){
-      const uEnd=Math.min(W-1,u+SPAN-1), n=uEnd-u;
-      const dA=h6*u+nd,    xA=(h0*u+nx)/dA,    yA=(h3*u+ny)/dA;
-      const dB=h6*uEnd+nd, xB=(h0*uEnd+nx)/dB, yB=(h3*uEnd+ny)/dB;
+      const uEnd=Math.min(W-1,u+SPAN-1), n=uEnd-u, XA=u+0.5, XB=uEnd+0.5;
+      const dA=c0*XA+nd, xA=(a0*XA+nx)/dA-0.5, yA=(b0*XA+ny)/dA-0.5;
+      const dB=c0*XB+nd, xB=(a0*XB+nx)/dB-0.5, yB=(b0*XB+ny)/dB-0.5;
       const sx=n?(xB-xA)/n:0, sy=n?(yB-yA)/n:0;
       let x=xA, y=yA;
       for(let k=0;k<=n;k++,x+=sx,y+=sy,o+=4){
         const cx=x<0?0:(x>xMax?xMax:x), cy=y<0?0:(y>yMax?yMax:y);
-        const x0=cx|0, y0=cy|0, fx=cx-x0, fy=cy-y0;
-        const i00=(y0*sw+x0)*4, i10=i00+4, i01=i00+sw*4, i11=i01+4;
-        const w00=(1-fx)*(1-fy), w10=fx*(1-fy), w01=(1-fx)*fy, w11=fx*fy;
-        dd[o]  =sd[i00]  *w00+sd[i10]  *w10+sd[i01]  *w01+sd[i11]  *w11;
-        dd[o+1]=sd[i00+1]*w00+sd[i10+1]*w10+sd[i01+1]*w01+sd[i11+1]*w11;
-        dd[o+2]=sd[i00+2]*w00+sd[i10+2]*w10+sd[i01+2]*w01+sd[i11+2]*w11;
+        const x1=cx|0, y1=cy|0, tx=cx-x1, ty=cy-y1;
+        const tx2=tx*tx, tx3=tx2*tx, ty2=ty*ty, ty3=ty2*ty;
+        const wx0=0.5*(2*tx2-tx3-tx), wx1=0.5*(3*tx3-5*tx2+2), wx2=0.5*(4*tx2-3*tx3+tx), wx3=0.5*(tx3-tx2);
+        const wy0=0.5*(2*ty2-ty3-ty), wy1=0.5*(3*ty3-5*ty2+2), wy2=0.5*(4*ty2-3*ty3+ty), wy3=0.5*(ty3-ty2);
+        const xm=x1>0?x1-1:0, xp=x1<xMax?x1+1:xMax, xq=x1+2<=xMax?x1+2:xMax;
+        const r0=(y1>0?y1-1:0)*sw, r1=y1*sw, r2=(y1<yMax?y1+1:yMax)*sw, r3=(y1+2<=yMax?y1+2:yMax)*sw;
+        const q0=(r0+xm)<<2,q1=(r0+x1)<<2,q2=(r0+xp)<<2,q3=(r0+xq)<<2;
+        const q4=(r1+xm)<<2,q5=(r1+x1)<<2,q6=(r1+xp)<<2,q7=(r1+xq)<<2;
+        const q8=(r2+xm)<<2,q9=(r2+x1)<<2,qa=(r2+xp)<<2,qb=(r2+xq)<<2;
+        const qc=(r3+xm)<<2,qd=(r3+x1)<<2,qe=(r3+xp)<<2,qf=(r3+xq)<<2;
+        for(let ch=0;ch<3;ch++){
+          dd[o+ch]=(sd[q0+ch]*wx0+sd[q1+ch]*wx1+sd[q2+ch]*wx2+sd[q3+ch]*wx3)*wy0
+                  +(sd[q4+ch]*wx0+sd[q5+ch]*wx1+sd[q6+ch]*wx2+sd[q7+ch]*wx3)*wy1
+                  +(sd[q8+ch]*wx0+sd[q9+ch]*wx1+sd[qa+ch]*wx2+sd[qb+ch]*wx3)*wy2
+                  +(sd[qc+ch]*wx0+sd[qd+ch]*wx1+sd[qe+ch]*wx2+sd[qf+ch]*wx3)*wy3;
+        }
         dd[o+3]=255;
       }
       u=uEnd+1;
@@ -3099,8 +3347,6 @@ function warpJS(srcCanvas,C,W,H){
   og.putImageData(od,0,0);
   return out;
 }
-/* Rotate, then crop to the largest inscribed rectangle so there are
-   no empty wedges in the corners. */
 /* Lossless quarter turns — an exact multiple of 90 degrees through a canvas
    transform resamples nothing. Applied at flatten time, never after: turning
    an already-flat page would invalidate every region rect. */
@@ -3110,14 +3356,19 @@ function rotate90(src,turns){
   const swap=turns%2===1;
   const out=mkCanvas(swap?src.height:src.width, swap?src.width:src.height);
   const g=ctx2d(out,{});
+  g.imageSmoothingEnabled=false;     // whole-pixel mapping: nearest is exact on every backend
   g.translate(out.width/2,out.height/2);
   g.rotate(turns*Math.PI/2);
   g.drawImage(src,-src.width/2,-src.height/2);
   return out;
 }
 
-function rotateCrop(src,deg){
-  const rad=Math.abs(deg*Math.PI/180), W=src.width, H=src.height;
+/* The largest upright rectangle inside a W×H page turned by `deg`, so the
+   deskewed page has no empty wedges in its corners. (This used to be
+   rotateCrop, a second resampling pass; renderFlatAt now folds the rotation
+   into the warp and only needs the size.) */
+function inscribedRect(W,H,deg){
+  const rad=Math.abs(deg*Math.PI/180);
   const sa=Math.sin(rad), ca=Math.cos(rad);
   const long=Math.max(W,H), short=Math.min(W,H);
   let wr,hr;
@@ -3128,13 +3379,7 @@ function rotateCrop(src,deg){
     const c2=ca*ca-sa*sa;
     wr=(W*ca-H*sa)/c2; hr=(H*ca-W*sa)/c2;
   }
-  wr=clamp(Math.floor(wr),8,W); hr=clamp(Math.floor(hr),8,H);
-  const out=mkCanvas(wr,hr), g=ctx2d(out,{});
-  g.imageSmoothingQuality='high';
-  g.translate(wr/2,hr/2);
-  g.rotate(deg*Math.PI/180);
-  g.drawImage(src,-W/2,-H/2);
-  return out;
+  return {w:clamp(Math.floor(wr),8,W), h:clamp(Math.floor(hr),8,H)};
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -3149,8 +3394,13 @@ function rotateCrop(src,deg){
    survive. Max-pool drops the ink and keeps the paper; blurring that gives
    a smooth field; dividing normalises the page toward uniform white.
 
-   FIELD_CELLS makes the cell a fraction of the long edge, which is what
-   keeps the 1400px proxy preview matching the full-res export. */
+   FIELD_CELLS makes the cell a fraction of the long edge. That alone did
+   NOT make the preview match the export: the estimate is a per-cell MAXIMUM,
+   and a maximum over full-resolution pixels (noise peaks intact) sits higher
+   than one over the averaged-down preview, so every export came out
+   1.5-2 levels darker than the preview it was judged on. processCanvas therefore
+   estimates the field ONCE, at preview size, and applies that same field at
+   any resolution. */
 const FIELD_CELLS=44;
 
 function boxBlur3(src,w,h,r,passes){
@@ -3314,10 +3564,13 @@ function illumField(d,w,h){
   return {f:boxBlur3(small,bw,bh,3,2), pic:pm, bw, bh, cell, paperFrac, pictorial:picMean};
 }
 
-function flattenLight(id,strength){
+/* `field` (optional) is an illumField() measured on a smaller copy of the
+   same page; kx/ky map this image's pixels into that copy's pixels. */
+function flattenLight(id,strength,field){
   if(!(strength>0)) return id;
   const w=id.width, h=id.height, d=id.data, k=strength/100;
-  const {f,pic,bw,bh,cell}=illumField(d,w,h);
+  const fl=field||illumField(d,w,h);
+  const {f,pic,bw,bh}=fl, sx=(fl.kx||1)/fl.cell, sy=(fl.ky||1)/fl.cell;
   /* PIC_EASE: how much of the correction is withheld where the page is
      picture rather than paper. Even a correct paper field brightens a photo —
      if the paper behind it was at 60%, everything there gets multiplied by
@@ -3326,11 +3579,11 @@ function flattenLight(id,strength){
      photograph while the price column still scans clean. */
   const PIC_EASE=0.80;
   for(let y=0;y<h;y++){
-    const gy=clamp(y/cell-0.5,0,bh-1);
+    const gy=clamp(y*sy-0.5,0,bh-1);
     const y0=gy|0, y1=Math.min(bh-1,y0+1), fy=gy-y0;
     let q=(y*w)<<2;
     for(let x=0;x<w;x++,q+=4){
-      const gx=clamp(x/cell-0.5,0,bw-1);
+      const gx=clamp(x*sx-0.5,0,bw-1);
       const x0=gx|0, x1=Math.min(bw-1,x0+1), fx=gx-x0;
       // bilinear picture-ness, so the easing is smooth
       const pa=pic[y0*bw+x0]+(pic[y0*bw+x1]-pic[y0*bw+x0])*fx;
@@ -3366,21 +3619,58 @@ function toneLUT(a){
   }
   return lut;
 }
-function sharpenData(id,amt){
+/* Unsharp mask with its radius set in PAGE terms, not pixels.
+
+   It used to be a fixed 3×3 box at whatever resolution it ran on. The
+   preview runs on the 1400 px proxy and the export at full resolution, so
+   one slider meant a ~3 px halo on screen and a 1 px one in the file. The
+   file therefore came out visibly SOFTER than the preview it was judged on
+   (measured at sharpen 50: high-frequency energy 35 in the export against
+   53 in the preview; preview-to-export match 32.5 dB). Every other spatial
+   step here already scales with the page (FIELD_CELLS, the magic-mode
+   block); this one now does too. At preview size the box is exactly the
+   old 3×3, so the preview looks the same as before and the export now
+   matches it (49 against 57; 38.0 dB).
+
+   Separable running sums: O(pixels) whatever the radius, where the old
+   nine-tap loop was 9 reads per channel per pixel. */
+function sharpenData(id,amt,radius){
   const {width:w,height:h,data:s}=id;
-  const out=new Uint8ClampedArray(s);
-  for(let y=1;y<h-1;y++){
-    for(let x=1;x<w-1;x++){
-      const i=(y*w+x)*4;
-      for(let c=0;c<3;c++){
-        const p=i+c;
-        const blur=(s[p-w*4-4]+s[p-w*4]+s[p-w*4+4]+s[p-4]+s[p]+s[p+4]+s[p+w*4-4]+s[p+w*4]+s[p+w*4+4])/9;
-        out[p]=clamp(s[p]+(s[p]-blur)*amt*2.2,0,255);
+  const r=Math.max(1,radius||1), ri=Math.floor(r), fr=r-ri, norm=1/(2*r+1), gain=amt*2.2;
+  const N=w*h, a=new Float32Array(N), b=new Float32Array(N), col=new Float32Array(w);
+  const out=new Uint8ClampedArray(s.length);
+  for(let ch=0;ch<3;ch++){
+    for(let i=0,q=ch;i<N;i++,q+=4) a[i]=s[q];
+    for(let y=0;y<h;y++){                                   // rows: a -> b
+      const o=y*w; let S=0;
+      for(let k=-ri;k<=ri;k++) S+=a[o+(k<0?0:(k>=w?w-1:k))];
+      for(let x=0;x<w;x++){
+        const lo=x-ri-1, hi=x+ri+1, rm=x-ri;
+        const aHi=a[o+(hi>=w?w-1:hi)];
+        b[o+x]=(S+fr*(a[o+(lo<0?0:lo)]+aHi))*norm;
+        S+=aHi-a[o+(rm<0?0:rm)];
       }
     }
+    /* columns: b -> a, one running sum per column while walking the rows in
+       memory order (a column-at-a-time walk strides the whole width per
+       step and was 3x slower). */
+    col.fill(0);
+    for(let k=-ri;k<=ri;k++){ const o=(k<0?0:(k>=h?h-1:k))*w; for(let x=0;x<w;x++) col[x]+=b[o+x]; }
+    for(let y=0;y<h;y++){
+      const o=y*w, lo=(y-ri-1<0?0:y-ri-1)*w, hi=(y+ri+1>=h?h-1:y+ri+1)*w, rm=(y-ri<0?0:y-ri)*w;
+      for(let x=0;x<w;x++){
+        const bHi=b[hi+x];
+        a[o+x]=(col[x]+fr*(b[lo+x]+bHi))*norm;
+        col[x]+=bHi-b[rm+x];
+      }
+    }
+    for(let i=0,q=ch;i<N;i++,q+=4) out[q]=s[q]+(s[q]-a[i])*gain;
   }
+  for(let q=3;q<s.length;q+=4) out[q]=s[q];
   return new ImageData(out,w,h);
 }
+/* Box width scales with the page: 3 px across a PROXY_LONG preview. */
+const sharpenRadius=c=>Math.max(1,(3*Math.max(c.width,c.height)/PROXY_LONG-1)/2);
 function grayInPlace(c){
   const g=ctx2d(c), id=g.getImageData(0,0,c.width,c.height), d=id.data;
   for(let i=0;i<d.length;i+=4){
@@ -3525,33 +3815,58 @@ function claheInPlace(c){
   return c;
 }
 
-function processCanvas(src,a0,refW){
-  /* refW = the resolution these adj values were authored against (the flat
-     width). Scaling spatial kernels by src.width/refW is what makes the
-     1400px proxy preview actually predict the full-res export. */
-  const k=refW?src.width/refW:1;
-  /* strength scales EVERYTHING, brightness included. Leaving brightness out
-     was a mistake: measured on a photo cover it was the single largest cause
-     of washout — lifting the whole region by ~38 levels and the blacks from
-     51 to 89, with no added contrast — and being outside the multiplier it
-     did that identically at every strength. A gentle treatment has to mean
-     gentle everything. */
+/* strength scales EVERYTHING, brightness included. Leaving brightness out
+   was a mistake: measured on a photo cover it was the single largest cause
+   of washout — lifting the whole region by ~38 levels and the blacks from
+   51 to 89, with no added contrast — and being outside the multiplier it
+   did that identically at every strength. A gentle treatment has to mean
+   gentle everything. */
+function effectiveAdj(a0){
   const st=(a0.strength==null?1:a0.strength);
-  const a=st===1?a0:Object.assign({},a0,{
+  return st===1?a0:Object.assign({},a0,{
     flat:clamp(a0.flat*st,0,100), con:clamp(a0.con*st,-100,100),
     bri :clamp(a0.bri*st,-100,100),
     sha :clamp(a0.sha*st,-100,100), hig:clamp(a0.hig*st,-100,100),
     shp :clamp(a0.shp*st,0,100)
   });
+}
+/* Would processCanvas change a single pixel? Export uses this to decide
+   whether a page can go out as the original file. */
+function needsTone(a0){
+  const a=effectiveAdj(a0);
+  return a.mode!=='color'||a.flat>0||!!(a.bri||a.con||a.sha||a.hig||a.shp>0);
+}
+function processCanvas(src,a0,refW,opts){
+  /* refW = the resolution these adj values were authored against (the flat
+     width). Scaling spatial kernels by src.width/refW is what makes the
+     1400px proxy preview actually predict the full-res export. */
+  const k=refW?src.width/refW:1;
+  const a=effectiveAdj(a0);
+  /* A no-op used to cost a full-resolution copy (48 MB for a phone photo) on
+     every export. Callers that own the lifetime of what they get back can
+     ask for the source itself. */
+  if(!needsTone(a0)) return (opts&&opts.noCopy)?src:copyCanvas(src);
   const c=copyCanvas(src), g=ctx2d(c);
   if(a.flat>0||a.bri||a.con||a.sha||a.hig||a.shp){
     let id=g.getImageData(0,0,c.width,c.height);
-    if(a.flat>0) flattenLight(id,a.flat);   // spatial — must precede the global LUT
+    if(a.flat>0){                           // spatial — must precede the global LUT
+      /* Same field the preview used: measured on the PROXY_LONG copy (made
+         by the same scaleCanvas call that made p._proxy, so it is the same
+         pixels), then applied at this resolution. */
+      let field=null;
+      const sm=scaleCanvas(src,PROXY_LONG);
+      if(sm!==src){
+        field=illumField(ctx2d(sm).getImageData(0,0,sm.width,sm.height).data,sm.width,sm.height);
+        field.kx=sm.width/c.width; field.ky=sm.height/c.height;
+        sm.width=sm.height=0;
+      }
+      flattenLight(id,a.flat,field);
+    }
     if(a.bri||a.con||a.sha||a.hig){
       const lut=toneLUT(a), d=id.data;
       for(let i=0;i<d.length;i+=4){ d[i]=lut[d[i]]; d[i+1]=lut[d[i+1]]; d[i+2]=lut[d[i+2]]; }
     }
-    if(a.shp>0) id=sharpenData(id,a.shp/100);
+    if(a.shp>0) id=sharpenData(id,a.shp/100,sharpenRadius(c));
     g.putImageData(id,0,0);
   }
   switch(a.mode){
@@ -3763,7 +4078,7 @@ const Tone={
     const g=View.overlayCtx();
     drawRulers(g);
     const modeLabel=$('#sel-mode').selectedOptions[0].textContent.split('—')[0].trim();
-    badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · ${before?'<b style="color:#a1660b">BEFORE — untouched</b>':(isTouched(p)?'<b>after</b> · '+modeLabel:'not adjusted yet')}`
+    badge(`<b>${esc(p.name)}</b> · ${p.flat.width}×${p.flat.height} · ${before?'<b style="color:#a1660b">BEFORE — untouched</b>':(isTouched(p)?'<b>after</b> · '+modeLabel:'not adjusted yet')}`
         + (curAdj(p).strength!==1?` · <b>${strengthName(curAdj(p).strength)}</b>`:'')
         + (this.locked()?' · <b style="color:#ffc247">locked until sliced</b>':'')
         + ` · preview at ${p._proxy.width}px`);
@@ -3825,11 +4140,16 @@ const Tone={
   /* Measures and sets EVERY flattened page, not just the one on screen —
      each gets its own measurement, because two photos of the same menu can
      be lit completely differently. */
-  async auto(){
+  /* With no argument: every flattened page (the button, and the A key).
+     With a list: just those — the arrival run passes the pages it has not
+     seen yet, so a page straightened AFTER the first visit to Adjust gets
+     the same treatment as the rest instead of silently going out untouched,
+     and a page somebody tuned by hand is never overwritten. */
+  async auto(only){
     if(this.locked()) return;
-    History.push('auto-enhance');
-    const pages=S.pages.filter(x=>x.flat);
+    const pages=(only||S.pages).filter(x=>x.flat);
     if(!pages.length) return;
+    History.push('auto-enhance');
     let last=null;
     await busy('Measuring '+pages.length+' image'+(pages.length>1?'s':''),async()=>{
       for(let i=0;i<pages.length;i++){
@@ -3842,7 +4162,7 @@ const Tone={
         if(pages[i].id===S.activeId) last=r;
       }
     });
-    if(!last) last=autoAdjust((activePage()||pages[0])._proxy);
+    if(!last) last={adj:curAdj(pages[0])};    // nothing to re-measure: the toast only reports
     renderTray(); this.syncUI(); this.draw();
     const a=activePage()?curAdj(activePage()):last.adj;
     S.autoToned=true;
@@ -3966,7 +4286,7 @@ const Slice={
       g.restore();
     }
 
-    badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height} · <b>${p.regions.length}</b> region${p.regions.length===1?'':'s'}`);
+    badge(`<b>${esc(p.name)}</b> · ${p.flat.width}×${p.flat.height} · <b>${p.regions.length}</b> region${p.regions.length===1?'':'s'}`);
     this.renderList();
   },
 
@@ -3977,7 +4297,7 @@ const Slice={
       const el=document.createElement('div');
       el.className='item'+(i===S.selRegion?' sel':'');
       el.innerHTML=`<span class="idx">${pad(i+1)}</span>
-        <span class="nm">${r.label}</span>
+        <span class="nm">${esc(r.label)}</span>
         <span class="mt">${Math.round(r.w)}×${Math.round(r.h)}</span>
         <button class="x" title="Delete">×</button>`;
       el.addEventListener('click',ev=>{
@@ -4244,14 +4564,11 @@ const Slice={
 /* ════════════════════════════════════════════════════════════════
    7 · STEP 5 — EXPORT
    ════════════════════════════════════════════════════════════════ */
-/* ── Dependency-free export fallbacks ─────────────────────────────
-   A store-only ZIP writer and a minimal one-JPEG-per-page PDF. PNG and
-   JPEG are already compressed, so STORE costs only the deflate we skip —
-   and B1 already wrote its images with {compression:'STORE'} anyway.
-
-   These exist because the worst failure shape is all the work and none of
-   the output: without them a blocked CDN leaves every upstream step
-   working and both export buttons dead. */
+/* ── Writers ───────────────────────────────────────────────────────
+   A store-only ZIP and a one-image-per-page PDF. These were the fallbacks
+   for JSZip and jsPDF; since 2.5 they are the only writers. PNG and JPEG are
+   already compressed, so STORE costs nothing but the deflate we skip, and the
+   PDF carries each page's own encoded bytes rather than re-encoding them. */
 const blobBytes=async b=>new Uint8Array(await b.arrayBuffer());
 
 const CRCT=(()=>{ const t=new Uint32Array(256);
@@ -4266,67 +4583,98 @@ function dosStamp(d){
 }
 
 function zipStore(files){
-  const total=files.reduce((a,f)=>a+f.bytes.length+f.name.length+76,0);
+  const enc=new TextEncoder();
+  const named=files.map(f=>({...f,nm:enc.encode(f.name)}));
+  const total=named.reduce((a,f)=>a+f.bytes.length+f.nm.length*2+76,22);
   if(total>0xFFFFFF00) throw new Error('Archive would exceed 4 GB and this writer has no ZIP64. '
-    +'Lower "Longest edge" or export in two passes.');
-  const enc=new TextEncoder(), st=dosStamp(new Date());
+    +'Pick a smaller size on step 5, or export in two passes.');
+  const st=dosStamp(new Date());
   const parts=[], central=[]; let off=0;
   const u32=v=>{const a=new Uint8Array(4);new DataView(a.buffer).setUint32(0,v>>>0,true);return a;};
   const u16=v=>{const a=new Uint8Array(2);new DataView(a.buffer).setUint16(0,v&0xFFFF,true);return a;};
-  for(const f of files){
-    const nm=enc.encode(f.name), crc=crc32(f.bytes), len=f.bytes.length;
-    const lh=[enc.encode('PK\x03\x04'),u16(20),u16(0),u16(0),u16(st.t),u16(st.d),
-              u32(crc),u32(len),u32(len),u16(nm.length),u16(0),nm];
+  for(const f of named){
+    const crc=crc32(f.bytes), len=f.bytes.length;
+    /* General-purpose bit 11 says "this name is UTF-8". Without it Windows
+       Explorer decodes the name as CP437 and 菜单 becomes box-drawing junk. */
+    const flags=/[^\x20-\x7e]/.test(f.name)?0x0800:0;
+    const lh=[enc.encode('PK\x03\x04'),u16(20),u16(flags),u16(0),u16(st.t),u16(st.d),
+              u32(crc),u32(len),u32(len),u16(f.nm.length),u16(0),f.nm];
     lh.forEach(x=>parts.push(x)); parts.push(f.bytes);
     const lhLen=lh.reduce((a,x)=>a+x.length,0);
-    central.push([enc.encode('PK\x01\x02'),u16(20),u16(20),u16(0),u16(0),u16(st.t),u16(st.d),
-                  u32(crc),u32(len),u32(len),u16(nm.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off),nm]);
+    central.push([enc.encode('PK\x01\x02'),u16(20),u16(20),u16(flags),u16(0),u16(st.t),u16(st.d),
+                  u32(crc),u32(len),u32(len),u16(f.nm.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off),f.nm]);
     off+=lhLen+len;
   }
   const cd=[]; central.forEach(c=>c.forEach(x=>cd.push(x)));
   const cdSize=cd.reduce((a,x)=>a+x.length,0);
-  cd.push(enc.encode('PK\x05\x06'),u16(0),u16(0),u16(files.length),u16(files.length),
+  cd.push(enc.encode('PK\x05\x06'),u16(0),u16(0),u16(named.length),u16(named.length),
           u32(cdSize),u32(off),u16(0));
   return new Blob([...parts,...cd],{type:'application/zip'});
 }
 
-/* One baseline JPEG per page, fitted to the page box with an 18pt margin.
-   /DCTDecode only, so this path is always JPEG — it cannot carry the
-   lossless PNG option, and the UI says so when jsPDF is missing. */
-function buildPDF(pages){
-  const enc=new TextEncoder(), chunks=[], offs=[]; let pos=0;
+/* One image per page, embedded EXACTLY as the image export encodes it: a
+   JPEG goes in as /DCTDecode — the file's own bytes, never decoded or
+   re-encoded — and a lossless page goes in as Flate-compressed RGB. So the
+   PDF is never a lower-quality copy of the images, which is what it used to
+   be (re-encoded through toDataURL and capped at 2600 px by default).
+
+   An ICC profile in a passed-through JPEG (iPhones shoot Display P3) comes
+   along as /ICCBased, or viewers would read those colours as plain sRGB.
+
+   Page box — 'fit': the page takes the image's shape, 842 pt on the long
+   side; 'a4' / 'letter': that paper, turned to match the image, image centred
+   and scaled to fit. The page box decides how big it prints, never how many
+   pixels the PDF holds. */
+const PDF_FORMATS={ a4:[595.28,841.89], letter:[612,792] };
+const pdfString=s=>'('+String(s).replace(/[\\()]/g,m=>'\\'+m).replace(/[^\x20-\x7e]/g,'?')+')';
+function buildPDF(pages,fmt,meta){
+  const enc=new TextEncoder(), chunks=[], offs=[]; let pos=0, next=1;
   const push=x=>{ const b=typeof x==='string'?enc.encode(x):x; chunks.push(b); pos+=b.length; };
+  const alloc=()=>next++;
   const obj=(id,body,stream)=>{
     offs[id]=pos; push(id+' 0 obj\n'+body+'\n');
     if(stream!==undefined){ push('stream\n'); push(stream); push('\nendstream\n'); }
     push('endobj\n');
   };
+  const f2=v=>(+v).toFixed(2);
   push('%PDF-1.4\n');
   push(new Uint8Array([0x25,0xE2,0xE3,0xCF,0xD3,0x0A]));  // binary marker as raw bytes
-  obj(1,'<< /Type /Catalog /Pages 2 0 R >>');
-  obj(2,'<< /Type /Pages /Kids ['+pages.map((_,i)=>(3+i*3)+' 0 R').join(' ')
-       +'] /Count '+pages.length+' >>');
-  const M=18;
-  pages.forEach((pg,i)=>{
-    const id=3+i*3, im=id+1, ct=id+2;
-    const land=pg.w>pg.h, PW=land?792:612, PH=land?612:792;
-    const sc=Math.min((PW-2*M)/pg.w,(PH-2*M)/pg.h);
-    const w=(pg.w*sc).toFixed(2), h=(pg.h*sc).toFixed(2);
-    const x=((PW-pg.w*sc)/2).toFixed(2), y=((PH-pg.h*sc)/2).toFixed(2);
-    obj(id,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+PW+' '+PH+'] '
-      +'/Resources << /XObject << /Im0 '+im+' 0 R >> >> /Contents '+ct+' 0 R >>');
-    obj(im,'<< /Type /XObject /Subtype /Image /Width '+pg.w+' /Height '+pg.h
-      +' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '
-      +pg.bytes.length+' >>',pg.bytes);
-    const cs='q '+w+' 0 0 '+h+' '+x+' '+y+' cm /Im0 Do Q';
-    obj(ct,'<< /Length '+cs.length+' >>',cs);
-  });
-  const xref=pos, total=2+pages.length*3;
+  const catalog=alloc(), tree=alloc(), info=alloc(), kids=[];
+  for(const pg of pages){
+    const page=alloc(), im=alloc(), ct=alloc();
+    let cs='/DeviceRGB';
+    if(pg.icc){ const ic=alloc(); obj(ic,`<< /N 3 /Alternate /DeviceRGB /Length ${pg.icc.length} >>`,pg.icc); cs=`[/ICCBased ${ic} 0 R]`; }
+    let PW,PH;
+    if(PDF_FORMATS[fmt]){ const [a,b]=PDF_FORMATS[fmt], land=pg.w>pg.h; PW=land?b:a; PH=land?a:b; }
+    else{ const k=842/Math.max(pg.w,pg.h); PW=pg.w*k; PH=pg.h*k; }
+    const sc=Math.min(PW/pg.w,PH/pg.h), dw=pg.w*sc, dh=pg.h*sc;
+    obj(page,`<< /Type /Page /Parent ${tree} 0 R /MediaBox [0 0 ${f2(PW)} ${f2(PH)}] `
+      +`/Resources << /XObject << /Im0 ${im} 0 R >> >> /Contents ${ct} 0 R >>`);
+    obj(im,`<< /Type /XObject /Subtype /Image /Width ${pg.w} /Height ${pg.h} /ColorSpace ${cs} `
+      +`/BitsPerComponent 8 /Filter /${pg.filter} /Length ${pg.bytes.length} >>`,pg.bytes);
+    const c=`q ${f2(dw)} 0 0 ${f2(dh)} ${f2((PW-dw)/2)} ${f2((PH-dh)/2)} cm /Im0 Do Q`;
+    obj(ct,`<< /Length ${c.length} >>`,c);
+    kids.push(page);
+  }
+  obj(tree,`<< /Type /Pages /Kids [${kids.map(k=>k+' 0 R').join(' ')}] /Count ${kids.length} >>`);
+  obj(catalog,`<< /Type /Catalog /Pages ${tree} 0 R >>`);
+  const d=new Date();
+  obj(info,`<< /Title ${pdfString(meta.title)} /Creator ${pdfString(meta.creator)} /Producer ${pdfString(meta.creator)} `
+    +`/CreationDate ${pdfString('D:'+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds()))} >>`);
+  const xref=pos, total=next-1;
   let t='xref\n0 '+(total+1)+'\n0000000000 65535 f \n';
   for(let i=1;i<=total;i++) t+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
-  t+='trailer\n<< /Size '+(total+1)+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n';
+  t+=`trailer\n<< /Size ${total+1} /Root ${catalog} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
   push(t);
   return new Blob(chunks,{type:'application/pdf'});
+}
+/* Lossless PDF page: raw RGB through the browser's own deflate (zlib framing,
+   which is exactly what /FlateDecode expects). */
+async function deflateRGB(c){
+  const d=ctx2d(c).getImageData(0,0,c.width,c.height).data, rgb=new Uint8Array(c.width*c.height*3);
+  for(let i=0,j=0;i<d.length;i+=4,j+=3){ rgb[j]=d[i]; rgb[j+1]=d[i+1]; rgb[j+2]=d[i+2]; }
+  const zs=new Blob([rgb]).stream().pipeThrough(new CompressionStream('deflate'));
+  return new Uint8Array(await new Response(zs).arrayBuffer());
 }
 
 /* Folder names are the highest-signal thing a parser sees when it opens the
@@ -4334,26 +4682,27 @@ function buildPDF(pages){
    Rename here and the README, the manifest and the files all follow. */
 const ZIP_FOLDERS={ ocr:'ocr-for-scanning' };
 
-const PDF_FORMATS={ a4:[595.28,841.89], letter:[612,792] };
-
 /* ── Resize & compress step ───────────────────────────────────────
    Its own step, because this is a thing you DO rather than a preference
    buried in a disclosure — and it shows the consequence of every setting as
    exact dimensions per page, instead of making you export to find out.
 
-   The defaults ARE the previous behaviour, so walking through and pressing
-   nothing leaves the output byte-identical to not having the step at all. */
-/* Four presets covering what people actually ask for, with the sliders kept
-   as the single source of truth — a preset just sets them. So the buttons and
-   the fine-tune section can never disagree, and "which one am I on" is
-   answered by reading the sliders back rather than by a separate flag that
-   could drift out of step. */
-/* The default does NOT touch resolution. Changing how many pixels a file has
-   is a decision, not a default — this step is where it gets made, and a job
-   that never opens it comes out at the size it went in. */
+   Four presets, with the sliders kept as the single source of truth — a
+   preset just sets them. So the buttons and the fine-tune section can never
+   disagree, and "which one am I on" is answered by reading the sliders back.
+
+   The default is ORIGINAL QUALITY, and it means three things:
+     · resolution is never touched (it changes here or nowhere);
+     · a page whose pixels never changed goes out as the original file;
+     · a page whose pixels did change is written at JPEG 100, which is the
+       only setting at which the browser keeps full colour resolution
+       (Chrome subsamples chroma 4:2:0 at every quality below 1.0 —
+       measured), and a lossless source stays PNG.
+   "Original size, smaller files" is the old 95% default, for when a file
+   has to be light. */
 const SIZE_PRESETS={
+  original:{mode:'none',   longest:4200, q:100, target:0},
   standard:{mode:'none',   longest:4200, q:95,  target:0},
-  full    :{mode:'none',   longest:4200, q:100, target:0},
   half    :{mode:'longest',longest:2400, q:88,  target:0},
   small   :{mode:'longest',longest:1600, q:82,  target:400}
 };
@@ -4406,7 +4755,7 @@ const Size={
       const z=Exporter.sizing();
       const out=this.outFor(p,z);
       const same=out.w===p.flat.width&&out.h===p.flat.height;
-      badge(`<b>${p.name}</b> · ${p.flat.width}×${p.flat.height}`
+      badge(`<b>${esc(p.name)}</b> · ${p.flat.width}×${p.flat.height}`
           + (same?' · <b>unchanged</b>':` → <b>${out.w}×${out.h}</b>`));
       $('#stage-empty').style.display='none';
     }else{
@@ -4419,13 +4768,12 @@ const Size={
     this.table(pages);
   },
 
-  /* Output dimensions for one page, worked out without touching a pixel. */
+  /* Output dimensions for one page, worked out without touching a pixel.
+     These must mirror Exporter.resized() exactly, dead-band included — the
+     table is a promise about what the file will be. */
   outFor(p,z){
     const W=p.flat.width, H=p.flat.height;
-    if(z.mode==='none') return {w:W,h:H};
-    /* These must mirror resized() exactly, dead-band included — the table is
-       a promise about what the file will be, so it cannot predict a resize
-       that scaleCanvas then declines to perform. */
+    if(!z||z.mode==='none') return {w:W,h:H};
     if(z.mode==='longest'){
       const long=Math.max(W,H);
       if(long<=z.longest) return {w:W,h:H};
@@ -4435,11 +4783,13 @@ const Size={
     }
     if(z.mode==='percent'){
       if(z.pct>=RESAMPLE_DEADBAND) return {w:W,h:H};
-      return {w:Math.max(1,Math.round(W*z.pct)),h:Math.max(1,Math.round(H*z.pct))};
+      const k=Math.max(8,Math.round(Math.max(W,H)*z.pct))/Math.max(W,H);
+      return {w:Math.max(1,Math.round(W*k)),h:Math.max(1,Math.round(H*k))};
     }
     const tw=Math.max(8,z.w|0), th=Math.max(8,z.h|0);
     if(!z.fit) return {w:tw,h:th};
     const k=Math.min(tw/W,th/H);
+    if(k>=RESAMPLE_DEADBAND) return {w:W,h:H};           // fit never upscales — resized() doesn't
     return {w:Math.max(1,Math.round(W*k)),h:Math.max(1,Math.round(H*k))};
   },
 
@@ -4456,7 +4806,7 @@ const Size={
       el.className='item'+(p.id===S.activeId?' sel':'');
       el.innerHTML=`<span class="idx">${pad(i+1)}</span>`
         +`<span class="sw" style="background-image:url(${p.thumb||''})"></span>`
-        +`<span class="nm">${p.name}</span>`
+        +`<span class="nm">${esc(p.name)}</span>`
         +`<span class="mt">${same?'unchanged':o.w+'×'+o.h}</span>`;
       el.addEventListener('click',()=>{ S.activeId=p.id; renderTray(); this.draw(); });
       host.appendChild(el);
@@ -4465,14 +4815,17 @@ const Size={
     if(!pages.length){ note.textContent='—'; return; }
     const cur=this.current();
     const ratio=px?pxOut/px:1;
+    const q=+$('#s-q').value;
     note.innerHTML=(cur?'':'<b>Custom</b> — ')+(z.targetKB
       ? `Each image squeezed under <b>${z.targetKB} KB</b> — dropping resolution if quality alone cannot get there.`
       : (ratio>0.999
-        ? `<b>Full size</b> — no resampling at all. Images come out exactly as the previous step left them.`
+        ? `<b>Full size</b> — no resampling at all.`
+          +(q>=100?' Untouched photos go out as the original file; changed pages at JPEG 100% with full colour detail.'
+                  :` Changed pages are re-compressed at ${q}%, which also halves colour detail.`)
         : `About <b>${Math.round(ratio*100)}%</b> of the pixels, so roughly <b>${Math.round(ratio*100)}%</b> of the file size.`));
   },
 
-  reset(){ this.apply('standard'); this.draw(); }
+  reset(){ this.apply('original'); this.draw(); }
 };
 
 const Exporter={
@@ -4494,7 +4847,8 @@ const Exporter={
         g.fillText(pad(i+1),a.x+4*d,a.y+12*d);
         g.restore();
       });
-      badge(`<b>${p.name}</b> · ready to export`);
+      badge(`<b>${esc(p.name)}</b> · ready to export`
+          + (this.passFor(p,this.imageOpts(this.settings()))?' · <b>goes out as the original file</b>':''));
     }else View.show(null);
     this.summary();
   },
@@ -4502,15 +4856,17 @@ const Exporter={
   renderList(){
     const host=$('#export-list'); host.innerHTML='';
     const pages=exportPages();
+    const io=this.imageOpts(this.settings());
     pages.forEach((p,i)=>{
       const el=document.createElement('div');
       el.className='item';
       el.innerHTML=`<span class="idx">${pad(i+1)}</span>
         <span class="sw" style="background-image:url(${p.thumb||''})"></span>
-        <span class="nm">${p.name}${p.joinedFrom?' <span style="color:#00d3c0">· joined</span>':''}</span>
+        <span class="nm">${esc(p.name)}${p.joinedFrom?' <span style="color:#00d3c0">· joined</span>':''}${this.passFor(p,io)?' <span style="color:#00d3c0">· original file</span>':''}</span>
         <span class="mt">${p.flat.width}×${p.flat.height}</span>
         <button class="x" title="Leave out">×</button>`;
       el.querySelector('.x').addEventListener('click',()=>{
+        History.push('hold back “'+p.name+'”');
         p.include=false; renderTray(); Exporter.draw();
       });
       host.appendChild(el);
@@ -4518,40 +4874,55 @@ const Exporter={
     $('#export-none').style.display=pages.length?'none':'block';
   },
 
-  /* Rough but honest: measure ONE page at the current settings and scale up.
-     Menu pages are similar enough that this lands close, and it beats
-     exporting 40 MB to find out. */
+  /* Every export setting, read once so a whole run is consistent. */
+  settings(){
+    const cap=$('#sel-pdf-cap');
+    return { z:this.sizing(), q:+$('#s-q').value/100, lossless:$('#c-lossless').checked,
+             pdfCap:cap?(+cap.value||0):0, fmt:$('#sel-pdf-fmt').value };
+  },
+  imageOpts(st){ return {z:st.z,cap:0,q:st.q,lossless:st.lossless,targetKB:st.z.targetKB,forPdf:false}; },
+  /* The PDF keeps its own size control (a cap, default none) and ignores the
+     Resize step's mode and size limit — it is for reading, not for attaching
+     one image at a time. Quality and lossless follow step 5. */
+  pdfOpts(st){ return {z:{mode:'none'},cap:st.pdfCap,q:st.q,lossless:st.lossless,targetKB:0,forPdf:true}; },
+
+  /* Rough but honest: original files are counted exactly, everything else
+     from one proxy encoded at the real settings and scaled by pixel count. */
   async estimate(){
     if(busyDepth>0) return;
     const pages=exportPages(), el=$('#size-readout');
     if(!pages.length){ el.textContent='—'; this._estKey=''; return; }
-    const lossless=$('#c-lossless').checked;
-    const maxDim=+$('#s-maxdim').value, maxDimImg=+$('#s-maxdim-img').value;
-    const q=lossless?undefined:+$('#s-q').value/100;
-    const key=[pages.length,ocrPages().length,lossless,maxDim,maxDimImg,q].join('|');
+    const st=this.settings(), io=this.imageOpts(st), po=this.pdfOpts(st);
+    const key=JSON.stringify([pages.map(p=>p.id+Tone.key(p.adj)+p.flat.width),ocrPages().length,st]);
     if(this._estKey===key) return;
     this._estKey=key;
     el.textContent='measuring…';
     try{
-      /* Encode the PROXY, not the full page — rendering 12 MP through the
-         tone pipeline just to size it would stall this pane on every open.
-         JPEG size tracks pixel count closely enough for an estimate. */
-      const p0=pages[0];
-      const proxy=processCanvas(p0._proxy,p0.adj,p0.flat.width);
-      const b=await canvasBlob(proxy,lossless?'image/png':'image/jpeg',q);
-      const proxyPx=proxy.width*proxy.height;
-      proxy.width=proxy.height=0;
-      const long=Math.max(p0.flat.width,p0.flat.height);
-      const pxAt=cap=>{const k=Math.min(1,cap/long);return (p0.flat.width*k)*(p0.flat.height*k);};
-      const perImg=b.size*(pxAt(maxDimImg)/proxyPx);
-      const perPdf=b.size*(pxAt(maxDim)/proxyPx);
-      const nC=pages.length, nO=ocrPages().length;
+      const bppCache={};
+      const bpp=async(p,type,q)=>{
+        const k=type+q; if(bppCache[k]) return bppCache[k];
+        const proxy=processCanvas(p._proxy,p.adj,p.flat.width);
+        const b=await canvasBlob(proxy,type,type==='image/png'?undefined:q);
+        const v=b.size/(proxy.width*proxy.height);
+        proxy.width=proxy.height=0;
+        return (bppCache[k]=v);
+      };
+      const size=async(p,o)=>{
+        const s=this.passFor(p,o); if(s) return s.bytes.length;
+        const t=this.outType(p,o), d=this.dims(p,o);
+        let v=(await bpp(p,t,o.q))*d.w*d.h;
+        if(o.targetKB&&t==='image/jpeg') v=Math.min(v,o.targetKB*1024);
+        return v;
+      };
+      let img=0,pdf=0,ocr=0,orig=0;
+      for(const p of pages){ img+=await size(p,io); pdf+=await size(p,po); if(this.passFor(p,io)) orig++; }
+      const op=ocrPages(); if(hasJoins()) for(const p of op) ocr+=await size(p,io);
       const mb=v=>v>=1048576?(v/1048576).toFixed(1)+' MB':Math.round(v/1024)+' KB';
-      el.innerHTML=`all images <b>${mb(perImg*nC)}</b> — ${nC} page${nC===1?'':'s'}`
-        +`<br>PDF <b>${mb(perPdf*nC*0.95)}</b> — ${nC} page${nC===1?'':'s'}`
-        +(hasJoins()?`<br>OCR set <b>${mb(perImg*nO)}</b> — ${nO} sheet${nO===1?'':'s'}`:'')
-        +`<br><span style="color:#96938c">${Math.round(perImg/1024)} KB per image at ${maxDimImg}px</span>`
-        +(lossless?'<br><span style="color:#a1660b">lossless PNG runs about 10x JPEG</span>':'');
+      const nC=pages.length;
+      el.innerHTML=`all images <b>${mb(img)}</b> — ${nC} page${nC===1?'':'s'}`
+        +`<br>PDF <b>${mb(pdf)}</b>${st.pdfCap?` — capped at ${st.pdfCap}px`:' — full resolution'}`
+        +(hasJoins()?`<br>OCR set <b>${mb(ocr)}</b> — ${op.length} sheet${op.length===1?'':'s'}`:'')
+        +(orig?`<br><span style="color:#96938c">${orig} of ${nC} go out as the original file</span>`:'');
     }catch(e){ el.textContent='could not estimate'; }
   },
 
@@ -4560,7 +4931,6 @@ const Exporter={
     this.estimate();
     const pages=exportPages();
     const crops=pages.reduce((a,p)=>a+p.regions.length,0);
-    const noRegions=pages.filter(p=>!p.regions.length).length;
     const px=pages.reduce((a,p)=>a+p.flat.width*p.flat.height,0);
     $('#summary').innerHTML=
       `pages flattened <b>${pages.length}</b> of ${S.pages.length}<br>`+
@@ -4584,12 +4954,6 @@ const Exporter={
     $('#all-why').innerHTML=joined
       ? '<b>Images only</b>, flattened / straightened / cropped and <b>joined</b>.'
       : '<b>Images only</b>, flattened / straightened / cropped. Nothing was joined, so this is also the set for the parser.';
-    $('#btn-pdf').textContent=LIB.jspdf?'Export PDF':'Export PDF (basic)';
-    $('#btn-zip-all').textContent=LIB.jszip?'Export all images (ZIP)':'Export all images (basic ZIP)';
-    $('#btn-zip-ocr').textContent=LIB.jszip?'Export OCR set (ZIP)':'Export OCR set (basic ZIP)';
-    $('#c-lossless').disabled=!LIB.jszip&&false;
-    const note=$('#fallback-note');
-    if(note) note.style.display=(LIB.jspdf&&LIB.jszip)?'none':'block';
   },
 
   /* Resize settings, read once so a whole export run is consistent. */
@@ -4605,9 +4969,44 @@ const Exporter={
     };
   },
 
-  render(p,maxDim){
-    const full=processCanvas(p.flat,p.adj,p.flat.width);
-    return maxDim?scaleCanvas(full,maxDim):full;
+  /* PNG when asked for, or when the page came from lossless files and the
+     settings say "best" (quality 100, no size limit) — a screenshot should
+     not pick up JPEG ringing round its text on the way through. */
+  outType(p,o){
+    if(o.lossless) return 'image/png';
+    if(p.src&&p.src.lossless&&o.q>=1&&!o.targetKB) return 'image/png';
+    return 'image/jpeg';
+  },
+
+  /* Final pixel size for a page under options o — mirrors render(). */
+  dims(p,o){
+    let {w,h}=Size.outFor(p,o.z);
+    const L=Math.max(w,h);
+    if(o.cap&&L>o.cap&&o.cap/L<RESAMPLE_DEADBAND){ const k=o.cap/L; w=Math.round(w*k); h=Math.round(h*k); }
+    return {w,h};
+  },
+
+  /* Can this page go out as the original file? Only if not one of its
+     pixels would differ: used as-is (no warp, no quarter turn), no tone
+     change, no resize, no size limit, and not a forced format change. */
+  passFor(p,o){
+    const s=p.src&&p.src.pass;
+    if(!s||!p.asIs||p.turns||p.flat!==p.raw||needsTone(p.adj)||o.targetKB) return null;
+    if(o.lossless&&s.type!=='image/png') return null;
+    const d=this.dims(p,o);
+    return (d.w===p.flat.width&&d.h===p.flat.height)?s:null;
+  },
+
+  /* Pixels for one page at the requested size. release() frees only what
+     this call allocated: p.flat is shared with the UI and must never be
+     zeroed (processCanvas may now hand it straight back). */
+  render(p,z,cap){
+    const made=[];
+    const own=c=>{ if(c!==p.flat&&c!==p.raw&&!made.includes(c)) made.push(c); return c; };
+    let c=own(processCanvas(p.flat,p.adj,p.flat.width,{noCopy:true}));
+    c=own(this.resized(c,z));
+    if(cap&&Math.max(c.width,c.height)>cap) c=own(scaleCanvas(c,cap));
+    return {canvas:c, own, release(){ made.forEach(x=>{ x.width=x.height=0; }); }};
   },
 
   /* One resample to the requested output size, whichever way it was asked
@@ -4635,6 +5034,32 @@ const Exporter={
     g.imageSmoothingQuality='high';
     g.drawImage(c,0,0,W,H);
     return out;
+  },
+
+  /* Encode one page. The ONE place that decides what quality leaves the
+     tool, shared by the image export and the PDF so the two can never
+     drift apart again. Returns the bytes plus what the PDF needs to embed
+     them without touching them. */
+  async encodePage(p,o){
+    const pass=this.passFor(p,o);
+    if(pass&&!(o.forPdf&&pass.type==='image/png'))
+      return {bytes:pass.bytes,type:pass.type,ext:pass.ext,w:pass.w,h:pass.h,icc:pass.icc||null,filter:'DCTDecode',pass:true};
+    const type=this.outType(p,o);
+    const r=this.render(p,o.z,o.cap);
+    try{
+      const c=r.canvas;
+      if(o.forPdf&&type==='image/png'){
+        if(window.CompressionStream)
+          return {bytes:await deflateRGB(c),type,ext:'png',w:c.width,h:c.height,icc:null,filter:'FlateDecode',pass:false};
+        const b=await canvasBlob(c,'image/jpeg',1);       // no deflate available: best JPEG instead
+        return {bytes:await blobBytes(b),type:'image/jpeg',ext:'jpg',w:c.width,h:c.height,icc:null,filter:'DCTDecode',pass:false};
+      }
+      const first=await canvasBlob(c,type,type==='image/png'?undefined:o.q);
+      const sh=await this.shrinkToTarget(first,c,type,o.targetKB);
+      const w=sh.canvas.width, h=sh.canvas.height;
+      r.own(sh.canvas);
+      return {bytes:await blobBytes(sh.blob),type,ext:type==='image/png'?'png':'jpg',w,h,icc:null,filter:'DCTDecode',pass:false,shrank:sh.shrank};
+    }finally{ r.release(); }
   },
 
   /* Compress to a size limit, preferring RESOLUTION over quality.
@@ -4676,57 +5101,30 @@ const Exporter={
     }
     return {blob:best.blob,canvas:best.canvas,shrank:scaled};
   },
-  /* Produces the PDF as a Blob and does NOT download it, so the same code
-     can either be saved on its own or dropped inside the ZIP. Chrome blocks
-     the second automatic download from a page, which is what made "export
-     everything" fail — one file avoids the problem instead of fighting it. */
-  async renderPdfBlob(pages,q,maxDim,fmt,label){
-    label=label||'PDF page';
-    if(!LIB.jspdf){
-      const out=[];
-      for(let i=0;i<pages.length;i++){
-        $('#busy-msg').textContent=`${label} ${i+1} of ${pages.length}`;
-        await raf();
-        const img=this.render(pages[i],maxDim);
-        out.push({bytes:await blobBytes(await canvasBlob(img,'image/jpeg',q)),w:img.width,h:img.height});
-        img.width=img.height=0;
-      }
-      return buildPDF(out);
-    }
-    const {jsPDF}=window.jspdf;
-    let doc=null;
-    for(let i=0;i<pages.length;i++){
-      $('#busy-msg').textContent=`${label} ${i+1} of ${pages.length}`;
-      await raf();
-      const img=this.render(pages[i],maxDim);
-      let pw,ph;
-      if(fmt==='fit'){
-        const long=842, k=long/Math.max(img.width,img.height);
-        pw=img.width*k; ph=img.height*k;
-      }else{ [pw,ph]=PDF_FORMATS[fmt]; }
-      const land=pw>ph;
-      const format=[Math.min(pw,ph),Math.max(pw,ph)];
-      if(!doc) doc=new jsPDF({unit:'pt',format,orientation:land?'landscape':'portrait',compress:true});
-      else doc.addPage(format,land?'landscape':'portrait');
-      const PW=doc.internal.pageSize.getWidth(), PH=doc.internal.pageSize.getHeight();
-      const sc=Math.min(PW/img.width,PH/img.height);
-      const dw=img.width*sc, dh=img.height*sc;
-      doc.addImage(img.toDataURL('image/jpeg',q),'JPEG',(PW-dw)/2,(PH-dh)/2,dw,dh,undefined,'FAST');
-      img.width=img.height=0;                 // free the bitmap before the next page
-    }
-    doc.setProperties({title:APP.name+' — '+pages.length+' page(s)',creator:APP.name+' v'+APP.version});
-    return doc.output('blob');
-  },
 
   async pdf(){
     const pages=exportPages();
     if(!pages.length) return;
-    const q=+$('#s-q').value/100, maxDim=+$('#s-maxdim').value, fmt=$('#sel-pdf-fmt').value;
-    let blob=null;
-    await busy('Building PDF',async()=>{ blob=await this.renderPdfBlob(pages,q,maxDim,fmt); });
+    const st=this.settings(), o=this.pdfOpts(st);
+    let blob=null, orig=0;
+    try{
+      await busy('Building PDF',async()=>{
+        const out=[];
+        for(let i=0;i<pages.length;i++){
+          $('#busy-msg').textContent=`PDF page ${i+1} of ${pages.length}`;
+          await raf();
+          const e=await this.encodePage(pages[i],o);
+          if(e.pass) orig++;
+          out.push(e);
+        }
+        blob=buildPDF(out,st.fmt,{title:`${APP.name} - ${pages.length} page(s)`,creator:`${APP.name} v${APP.version}`});
+      });
+    }catch(e){ toast('PDF export failed: '+e.message,'err'); return; }
     if(!blob) return;
     download(blob,`${bundleStem()}_menu_${stamp()}.pdf`);
-    toast(`PDF exported — ${pages.length} page${pages.length>1?'s':''}.`+fortune());
+    toast(`PDF exported — ${pages.length} page${pages.length>1?'s':''}, `
+        + (st.pdfCap?`capped at ${st.pdfCap} px.`:'full resolution.')
+        + (orig?` ${orig} embedded as the original photo.`:'')+fortune());
   },
 
   /* Two archives with genuinely different jobs, so they are shaped
@@ -4744,88 +5142,81 @@ const Exporter={
     const pages=mode==='ocr'?ocrPages():exportPages();
     if(!pages.length){ toast('Nothing selected to export.','warn'); return; }
 
-    const lossless=$('#c-lossless').checked;
-    const maxDimImg=+$('#s-maxdim-img').value;
-    const type=lossless?'image/png':'image/jpeg';
-    const ext=lossless?'png':'jpg';
-    const q=lossless?undefined:+$('#s-q').value/100;
+    const st=this.settings(), o=this.imageOpts(st);
     const up=+$('#s-up').value;
     const inclFull=$('#c-include-full').checked;
+    let single=null, blob=null, orig=0;
 
-    await busy(mode==='ocr'?'Packing the OCR set':'Packing images',async()=>{
-      const plain=!LIB.jszip;
-      const entries=[];                        // fallback accumulator
-      const zip=plain?null:new JSZip();
-      const z=this.sizing();
-      const put=async(name,canvas)=>{
-        const out=this.resized(canvas,z);
-        let blob=await canvasBlob(out,type,q);
-        blob=(await this.shrinkToTarget(blob,out,type,z.targetKB)).blob;
-        if(plain) entries.push({name,bytes:await blobBytes(blob)});
-        else zip.file(name,blob,{compression:'STORE'});
-        return blob.size;
-      };
-      let bytes=0;
-      const dir=mode==='ocr'?`${ZIP_FOLDERS.ocr}/`:'';
-      const manifest={
-        tool:APP.name,
-        tool_version:APP.version,
-        tool_built:APP.built,
-        generated_at:new Date().toISOString(),
-        purpose:'Menu pages to run OCR on. Every image in this archive is one '
-               +'straightened menu sheet. Pages are NOT joined — each original '
-               +'sheet is its own file, numbered in reading order.',
-        image_format:ext,
-        quality:lossless?'lossless':(+$('#s-q').value/100),
-        longest_edge:maxDimImg,
-        pages:[]
-      };
-
-      /* One page and nothing else to bundle: hand it over as the image
-         itself. A zip containing exactly one file is packaging for its own
-         sake. This has to sit BEFORE the encode loop, or the page gets
-         encoded twice — once into an archive that then gets thrown away. */
-      if(mode==='images'&&pages.length===1&&!pages[0].regions.length){
-        const one=this.resized(this.render(pages[0],null),z);
-        const first=await canvasBlob(one,type,q);
-        const sh=await this.shrinkToTarget(first,one,type,z.targetKB);
-        download(sh.blob,`${safeName(pages[0].name)}_${stamp()}.${ext}`);
-        toast(`One page, so it came out as a single ${ext.toUpperCase()} rather than a zip`
-            + ` — ${sh.canvas.width}×${sh.canvas.height}, ${Math.round(sh.blob.size/1024)} KB.`
-            + (sh.shrank?' Scaled down to meet the size limit.':''));
-        return;
-      }
-
-      for(let i=0;i<pages.length;i++){
-        const p=pages[i];
-        $('#busy-msg').textContent=`Image ${i+1} of ${pages.length}`;
-        await raf();
-        const full=this.render(p,z.mode==='longest'?z.longest:null);
-        const fn=`${dir}${pad(i+1)}_${safeName(p.name)}.${ext}`;
-        if(mode==='images'||inclFull||!p.regions.length) bytes+=await put(fn,full);
-        const entry={order:i+1,name:p.name,file:fn,
-          width:full.width,height:full.height,joined:!!p.joinedFrom,regions:[]};
-        if(mode==='ocr'){
-          for(let r=0;r<p.regions.length;r++){
-            const rg=p.regions[r];
-            const cw=Math.max(1,Math.round(rg.w*up)), chh=Math.max(1,Math.round(rg.h*up));
-            const c=mkCanvas(cw,chh), g=ctx2d(c,{});
-            g.imageSmoothingQuality='high';
-            g.drawImage(full,Math.round(rg.x),Math.round(rg.y),Math.round(rg.w),Math.round(rg.h),0,0,cw,chh);
-            const rfn=`${dir}${pad(i+1)}_r${pad(r+1)}_${safeName(rg.label)}.${ext}`;
-            bytes+=await put(rfn,c);
-            entry.regions.push({order:r+1,label:rg.label,file:rfn,
-              source_rect:{x:Math.round(rg.x),y:Math.round(rg.y),w:Math.round(rg.w),h:Math.round(rg.h)},
-              exported:{w:cw,h:chh}});
-          }
+    try{
+      await busy(mode==='ocr'?'Packing the OCR set':'Packing images',async()=>{
+        /* One page and nothing else to bundle: hand it over as the image
+           itself. A zip containing exactly one file is packaging for its own
+           sake. */
+        if(mode==='images'&&pages.length===1&&!pages[0].regions.length){
+          const e=await this.encodePage(pages[0],o);
+          single={e,name:`${safeName(pages[0].name)}_${stamp()}.${e.ext}`};
+          return;
         }
-        manifest.pages.push(entry);
-        full.width=full.height=0;              // free the bitmap before the next page
-      }
+        const entries=[], digits=Math.max(2,String(pages.length).length);
+        const dir=mode==='ocr'?`${ZIP_FOLDERS.ocr}/`:'';
+        const manifest={
+          tool:APP.name,
+          tool_version:APP.version,
+          tool_built:APP.built,
+          generated_at:new Date().toISOString(),
+          purpose:'Menu pages to run OCR on. Every image in this archive is one '
+                 +'straightened menu sheet. Pages are NOT joined — each original '
+                 +'sheet is its own file, numbered in reading order.',
+          resize:st.z.mode,
+          longest_edge:st.z.mode==='longest'?st.z.longest:null,
+          quality:st.lossless?'lossless':st.q,
+          image_format:null,
+          pages:[]
+        };
+        let bytes=0;
+        for(let i=0;i<pages.length;i++){
+          const p=pages[i];
+          $('#busy-msg').textContent=`Image ${i+1} of ${pages.length}`;
+          await raf();
+          const stem=`${dir}${pad(i+1,digits)}_${safeName(p.name)}`;
+          const entry={order:i+1,name:p.name,joined:!!p.joinedFrom,regions:[]};
+          if(mode==='images'||inclFull||!p.regions.length){
+            const e=await this.encodePage(p,o);
+            const fn=`${stem}.${e.ext}`;
+            entries.push({name:fn,bytes:e.bytes}); bytes+=e.bytes.length; if(e.pass) orig++;
+            Object.assign(entry,{file:fn,width:e.w,height:e.h,format:e.ext,bytes:e.bytes.length,original_file:e.pass});
+          }
+          if(mode==='ocr'&&p.regions.length){
+            // Regions are in flat-page pixels, so crop from the full-size page,
+            // then apply step 5 to each crop.
+            const r=this.render(p,{mode:'none'},0);
+            try{
+              for(let k=0;k<p.regions.length;k++){
+                const rg=p.regions[k];
+                const cw=Math.max(1,Math.round(rg.w*up)), chh=Math.max(1,Math.round(rg.h*up));
+                const c=r.own(mkCanvas(cw,chh)), g=ctx2d(c,{});
+                g.imageSmoothingQuality='high';
+                g.drawImage(r.canvas,Math.round(rg.x),Math.round(rg.y),Math.round(rg.w),Math.round(rg.h),0,0,cw,chh);
+                const out=r.own(this.resized(c,o.z)), type=this.outType(p,o);
+                const b=await canvasBlob(out,type,type==='image/png'?undefined:o.q);
+                const sh=await this.shrinkToTarget(b,out,type,o.targetKB);
+                const rfn=`${dir}${pad(i+1,digits)}_r${pad(k+1)}_${safeName(rg.label,'region')}.${type==='image/png'?'png':'jpg'}`;
+                const rb=await blobBytes(sh.blob);
+                entries.push({name:rfn,bytes:rb}); bytes+=rb.length;
+                entry.regions.push({order:k+1,label:rg.label,file:rfn,
+                  source_rect:{x:Math.round(rg.x),y:Math.round(rg.y),w:Math.round(rg.w),h:Math.round(rg.h)},
+                  exported:{w:sh.canvas.width,h:sh.canvas.height}});
+              }
+            }finally{ r.release(); }
+          }
+          manifest.pages.push(entry);
+        }
+        const fmts=[...new Set(manifest.pages.map(x=>x.format).filter(Boolean))];
+        manifest.image_format=fmts.length===1?fmts[0]:fmts.join('+');
 
-      if(mode==='ocr'){
-        manifest.total_image_bytes=bytes;
-        const readme=
+        if(mode==='ocr'){
+          manifest.total_image_bytes=bytes;
+          const readme=
 `${APP.name} v${APP.version} — OCR set
 ${'='.repeat(APP.name.length+16)}
 
@@ -4847,25 +5238,28 @@ WHAT THIS IS
 There is no PDF and no colour set in this archive. Those are exported
 separately and are meant for people, not for parsing.
 `;
-        if(plain) entries.push({name:'README.txt',bytes:new TextEncoder().encode(readme)});
-        else zip.file('README.txt',readme);
-        const mf=JSON.stringify(manifest,null,2);
-        if(plain) entries.push({name:'manifest.json',bytes:new TextEncoder().encode(mf)});
-        else zip.file('manifest.json',mf);
-      }
+          entries.push({name:'README.txt',bytes:new TextEncoder().encode(readme)});
+          entries.push({name:'manifest.json',bytes:new TextEncoder().encode(JSON.stringify(manifest,null,2))});
+        }
+        $('#busy-msg').textContent='Writing archive';
+        await raf();
+        blob=zipStore(entries);
+      });
+    }catch(e){ toast('Export failed: '+e.message,'err'); return; }
 
-      $('#busy-msg').textContent='Writing archive';
-      await raf();
-      let blob;
-      if(plain){
-        try{ blob=zipStore(entries); }
-        catch(e){ toast(e.message,'err'); return; }
-      }else{
-        blob=await zip.generateAsync({type:'blob'});
-      }
-      download(blob,`${bundleStem()}_${mode==='ocr'?'ocr':'images'}_${stamp()}.zip`);
-    });
-    toast(`${mode==='ocr'?'OCR set':'Images'} exported — ${pages.length} image${pages.length===1?'':'s'}.`+fortune());
+    if(single){
+      const e=single.e;
+      download(new Blob([e.bytes],{type:e.type}),single.name);
+      toast(e.pass
+        ? `One page, so it came out as a single file — the original photo, ${e.w}×${e.h}, untouched (metadata removed).`
+        : `One page, so it came out as a single ${e.ext.toUpperCase()} rather than a zip — ${e.w}×${e.h}, ${Math.round(e.bytes.length/1024)} KB.`
+          + (e.shrank?' Scaled down to meet the size limit.':''));
+      return;
+    }
+    if(!blob) return;
+    download(blob,`${bundleStem()}_${mode==='ocr'?'ocr':'images'}_${stamp()}.zip`);
+    toast(`${mode==='ocr'?'OCR set':'Images'} exported — ${pages.length} image${pages.length===1?'':'s'}`
+        + (orig?`, ${orig} as the original file.`:'.')+fortune());
   }
 };
 /* manifest.json is better provenance than any filename, but a
@@ -4938,7 +5332,6 @@ function renderTray(){
   const aside=S.pages.filter(p=>!p.include);
 
   const tile=(p,seq)=>{
-    const i=S.pages.indexOf(p);
     const el=document.createElement('div');
     el.className='pg'+(p.id===S.activeId?' on':'')+(p.include?'':' used')+(p.joinedFrom?' isjoin':'');
     el.tabIndex=0; el.setAttribute('role','button');
@@ -4960,16 +5353,10 @@ function renderTray(){
     el.addEventListener('click',ev=>{
       if(ev.target.classList.contains('del')){
         ev.stopPropagation();
-        // a join sets its sources aside rather than deleting them, so undoing
-        // the join has to hand them back
-        if(p.joinedFrom) p.joinedFrom.forEach(id=>{
-          const src=S.pages.find(x=>x.id===id);
-          if(src){ src.consumed=false; src.include=true; }
-        });
-        S.pages.splice(i,1);
-        if(S.activeId===p.id) S.activeId=S.pages.length?S.pages[Math.max(0,i-1)].id:null;
-        if(Join.slots.includes(p.id)){ Join.parts=null; }
-        renderTray(); drawStep(); return;
+        /* Through removePage, not a private copy of it: this second delete
+           path skipped History.push, so deleting from the strip was the one
+           destructive action Ctrl+Z could not bring back. */
+        removePage(p); return;
       }
       if(ev.target.classList.contains('pick')){
         ev.stopPropagation();
@@ -5117,8 +5504,8 @@ function openAbout(){
   $('#about-name').textContent=APP.name;
   $('#about-ver').textContent=`v${APP.version} · built ${APP.built}`;
   $('#about-libs').textContent=[
-    LIB.jspdf?'jsPDF 2.5.1':'built-in PDF writer',
-    LIB.jszip?'JSZip 3.10.1':'built-in ZIP writer',
+    'built-in PDF writer',
+    'built-in ZIP writer',
     cvReady()?'OpenCV.js 4.10':'built-in transform (OpenCV off)'
   ].join('  ·  ');
   $('#about').hidden=false;
@@ -5163,7 +5550,10 @@ function drawStep(){
        with Ctrl+Z and resettable, so doing it for you saves a press without
        hiding anything — unlike the old silently baked-in preset, which was a
        different thing and stays gone. */
-    if(!S.autoToned&&S.pages.some(p=>p.flat)){ S.autoToned=true; Tone.auto(); }
+    if(CONFIG.autoEnhance&&busyDepth===0){
+      const fresh=S.pages.filter(x=>x.flat&&!x.autoSeen&&!x.tuned);
+      if(fresh.length){ fresh.forEach(x=>{ x.autoSeen=true; }); S.autoToned=true; Tone.auto(fresh); }
+    }
   }
   else if(S.step===STEP.JOIN){ if(Join.parts) Join.draw(); else Join.enter(); }
   else if(S.step===STEP.SIZE)     Size.draw();
@@ -5326,7 +5716,8 @@ function wire(){
 
   /* export pane */
   bindVal('#s-q','#v-q',v=>v+'%',()=>sizeSync());
-  bindVal('#s-maxdim','#v-maxdim',v=>v+' px',()=>Exporter.estimate());
+  $('#sel-pdf-cap').addEventListener('change',()=>Exporter.estimate());
+  $('#sel-pdf-fmt').addEventListener('change',()=>Exporter.estimate());
   bindVal('#s-maxdim-img','#v-maxdim-img',v=>v+' px',()=>sizeSync());
   const sizeSync=()=>{ Exporter.estimate(); if(S.step===STEP.SIZE) Size.draw(); };
   bindVal('#s-rzpct','#v-rzpct',v=>v+'%',sizeSync);
@@ -5335,10 +5726,11 @@ function wire(){
     Size.apply(b.dataset.sp);
     Size.draw();
     const z=SIZE_PRESETS[b.dataset.sp];
-    toast(z.mode==='none'
-      ? 'Full size — nothing will be resampled.'
-      : `Capped at ${z.longest} px, quality ${z.q}%`
-        + (z.target?`, under ${z.target} KB each.`:'.'));
+    toast(z.mode!=='none'
+      ? `Capped at ${z.longest} px, quality ${z.q}%` + (z.target?`, under ${z.target} KB each.`:'.')
+      : z.q>=100
+        ? 'Original quality — nothing resampled; untouched photos go out as the original file.'
+        : `Full size at ${z.q}% — smaller files, but changed pages are re-compressed and colour detail is halved.`);
   }));
   $('#btn-size-next').addEventListener('click',()=>goStep(STEP.EXPORT));
   $('#sel-resize').addEventListener('change',()=>{
@@ -5354,7 +5746,7 @@ function wire(){
   $('#btn-pdf').addEventListener('click',()=>Exporter.pdf());
   $('#btn-zip-all').addEventListener('click',()=>Exporter.zip({mode:'images'}));
   $('#btn-zip-ocr').addEventListener('click',()=>Exporter.zip({mode:'ocr'}));
-  $('#c-lossless').addEventListener('change',()=>Exporter.estimate());
+  $('#c-lossless').addEventListener('change',()=>sizeSync());
   const pick=fn=>{ History.push('change what is exported');
     S.pages.forEach(p=>{ if(p.flat) p.include=fn(p); }); renderTray(); Exporter.draw(); };
   $('#btn-pick-all').addEventListener('click',()=>pick(()=>true));
@@ -5365,9 +5757,6 @@ function wire(){
     // otherwise a job with one join and one loose page silently loses the page
     pick(p=>anyJoin ? (!!p.joinedFrom||!p.consumed) : true);
   });
-
-  /* steps nav */
-  $$('.step').forEach(b=>b.addEventListener('click',()=>{ if(!b.disabled) goStep(+b.dataset.step); }));
 
   /* ── stage pointer routing, with pan taking priority ── */
   const ov=$('#overlay');
@@ -5450,10 +5839,12 @@ function wire(){
     const now=Date.now();
     turnRun = (now-turnLast<2500 && dir===turnDir) ? turnRun+1 : 1;
     turnLast=now; turnDir=dir;
-    History.push('rotate “'+p.name+'”');
-    Crop.mode='edit';
+    // ask BEFORE recording an undo step — cancelling used to leave a no-op
+    // entry on the stack and wipe the redo history for nothing
     if(p.flat&&p.regions.length&&
        !confirm('Turning this page clears its '+p.regions.length+' crop region(s). Continue?')) return;
+    History.push('rotate “'+p.name+'”');
+    Crop.mode='edit';
     const W=p.raw.width, H=p.raw.height;
     p.raw=rotate90(p.raw,dir);
     p.corners=order4(p.corners.map(c=> dir>0 ? {x:H-c.y,y:c.x} : {x:c.y,y:W-c.x}));
@@ -5461,8 +5852,12 @@ function wire(){
     if(p.flat){ p.regions=[]; S.selRegion=-1; }
     View.resetView();
     Crop.draw();
-    // a page already flattened has a stale result, so redo it straight away
-    if(p.flat) await Crop.flatten({stay:true});
+    /* A page already flattened has a stale result, so redo it straight away.
+       A page used as-is just takes the turned photo: a quarter turn is
+       exact, so it stays at zero resamples. It used to be sent through a
+       full-frame warp here, which quietly resampled every pixel. */
+    if(p.flat&&p.asIs){ setFlat(p,p.raw); p.thumb=thumbURL(p.raw); }
+    else if(p.flat) await Crop.flatten({stay:true});
     renderTray();
     if(CONFIG.playful && turnRun>=4 && p.turns===0){
       turnRun=0;
@@ -5478,7 +5873,14 @@ function wire(){
   /* keyboard */
   document.addEventListener('keydown',ev=>{
     const z=(ev.key==='z'||ev.key==='Z'), y=(ev.key==='y'||ev.key==='Y');
+    /* Ctrl+Z in a box you are typing in is the text's own undo. The app
+       undo used to fire first and roll back a page while you were fixing a
+       typo. Sliders and checkboxes still get the app undo. */
+    const el=document.activeElement;
+    const typing=!!el&&(el.isContentEditable||el.tagName==='TEXTAREA'||
+      (el.tagName==='INPUT'&&/^(text|number|search|email|url|tel|password)$/i.test(el.type)));
     if((ev.metaKey||ev.ctrlKey)&&(z||y)){
+      if(typing) return;
       ev.preventDefault();
       if(y||ev.shiftKey) History.redo(); else History.undo();
       return;

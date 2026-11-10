@@ -6,7 +6,7 @@ Everything runs entirely client-side in the browser—no photos are ever uploade
 
 **Live Demo:** [https://tarroys.github.io/menu-scanner/](https://tarroys.github.io/menu-scanner/)
 
-**Current version:** v2.4 — long-press the app name in the tool (or press `?`) to see the exact version and build date of whatever copy you're looking at.
+**Current version:** v2.5 — long-press the app name in the tool (or press `?`) to see the exact version and build date of whatever copy you're looking at.
 
 ---
 
@@ -16,9 +16,9 @@ The tool processes photos through six linear steps (left to right along the top 
 
 1. **Reorder:** Drop photos in and drag them into page order. Photo #1 becomes Page 1 of the PDF.
 2. **Straighten:** Drag the four corner handles onto the corners of the menu sheet and click **Flatten** (or **Use as-is** if the photo is already square-on). Corners are detected automatically where that can be done reliably—see *Gated Auto-Detection* below.
-3. **Adjust:** **Auto-enhance runs by itself** on arrival, measuring every page independently and setting tone, illumination, contrast, and sharpness. A **strength slider** (Extra gentle → Strong) is picked per page and can be overridden.
+3. **Adjust:** **Auto-enhance runs by itself** on arrival, measuring every page independently and setting tone, illumination, contrast, and sharpness. A **strength slider** (Extra gentle → Strong) is picked per page and can be overridden. Auto-enhance changes pixels by design; set `CONFIG.autoEnhance = false` (or press **Reset all**) when exports must be the photo itself.
 4. **Join:** *(Optional — only if the menu arrived in halves)* Pick two or more pages and drag them into place to form a composite. You stay on this step, so a four-photo job can be two joins in a row.
-5. **Resize:** *(Optional — most jobs need nothing here)* Four preset buttons control output size and compression, with a live table showing the exact dimensions each page will come out at.
+5. **Resize:** *(Optional — most jobs need nothing here)* Four preset buttons control output size and compression, with a live table showing the exact dimensions each page will come out at. The default is **Original quality**.
 6. **Export:** Generate final production deliverables using three one-click buttons.
 
 ### Export Options
@@ -26,7 +26,7 @@ The tool processes photos through six linear steps (left to right along the top 
 Each button downloads exactly one file, which prevents Chrome from blocking subsequent downloads:
 
 * **Export all images (ZIP):** Contains all processed images (flattened, straightened, cropped, and joined) flat at the archive root. *(If there is only one page, it downloads as a single image—no point zipping one file.)*
-* **Export PDF:** Outputs the finished pages in sequential order for standard document viewing (e.g., CMA uploads).
+* **Export PDF:** Outputs the finished pages in sequential order for standard document viewing (e.g., CMA uploads). Each page embeds **exactly the same image data** as the image export — full resolution by default, no re-encoding.
 * **Export OCR set (ZIP):** Contains un-joined single pages, a `README.txt`, and a `manifest.json` metadata file so automated parsers know what they have. *(Note: This button only appears once you have actually joined something—without a join, it would be byte-identical to the first archive).*
 
 **Why the OCR set is deliberately un-joined:** a parser downscales whatever you give it to a fixed size. A single sheet keeps its text roughly **45% taller** than the same sheet joined to another—the difference between small print being read and being guessed at.
@@ -64,14 +64,17 @@ Nothing fires while a text field has focus, and nothing is bound on the Export s
 ## How It Works
 
 ### Dependencies
-All libraries load from CDNs with mirrors. The app is built to degrade gracefully rather than die if a dependency is blocked:
+None are required. The PDF and ZIP writers are built in (since v2.5 — jsPDF and JSZip are gone), so no third-party script runs in the page unless OpenCV is switched on:
 
-| Library | Used for | If it fails |
+| Library | Used for | If it is off or fails |
 | --- | --- | --- |
-| **OpenCV.js 4.10** (~10 MB) | Perspective warp, adaptive threshold, CLAHE *(Off by default)* | Span-interpolated bilinear warp takes over (~0.9s for a 10 MP page). |
-| **jsPDF 2.5.1** | PDF writing | Built-in minimal PDF writer takes over. |
-| **JSZip 3.10.1** | ZIP writing | Built-in store-only ZIP writer takes over. |
+| **OpenCV.js 4.10** (~10 MB) | Faster warp, adaptive threshold, CLAHE *(Off by default)* | The built-in bicubic warp does the work (~0.7 s for a 9 MP page). |
 | **IBM Plex** (Google Fonts) | Typography | Falls back to the system font stack. |
+
+### Security
+* A **Content-Security-Policy** (meta tag — GitHub Pages cannot send headers) forbids the page from making any network connection (`connect-src 'none'`), loading remote images, posting forms or running `eval`. Client photos cannot leave the machine even if something malicious got into the page.
+* Every file name is HTML-escaped before it is shown. (Before v2.5 a photo named `<img src=x onerror=…>.jpg` ran its script when dropped in.)
+* Exported originals have their EXIF/XMP metadata (GPS position, device, owner) removed; the image data and ICC colour profile are untouched.
 
 **OpenCV Note:** OpenCV is not loaded at boot (`CONFIG.useOpenCV = false`). It is a ~10 MB WASM bundle that, in the shipped configuration, does exactly one job (perspective warp) which the pure-JS warp already handles in under a second. Turning it on buys a faster warp and specific enhance modes, but giving a dependency that size a fallback list can cause catastrophic renderer crashes if it retries. It gets **one** mirror and a short timeout—fall-through is right for a 90 KB library and disastrous for a 10 MB one.
 
@@ -128,14 +131,21 @@ Corner detection separates page from background by brightness, so it is accurate
 
 ## Quality & Size
 
-Size and compression have their own step (**5 — Resize**) with four preset buttons. Most jobs need nothing here; **Standard** is pre-selected.
+Size and compression have their own step (**5 — Resize**) with four preset buttons. Most jobs need nothing here; **Original quality** is pre-selected.
 
 | Preset | Setting | Result on a phone photo |
 | --- | --- | --- |
-| **Original size** *(default)* | No resize, quality 95% | **Unchanged — resolution is never touched** |
-| **Original size, max quality** | No resize, quality 100% | Unchanged, larger file |
+| **Original quality** *(default)* | No resize, JPEG 100% (4:4:4), PNG stays PNG | **Resolution never touched.** An unchanged photo goes out as the **original file**. Changed pages are near-lossless (~59 dB) but about 2.5–3× the size of a 95% file. |
+| **Original size, smaller files** | No resize, quality 95% | Same pixels, roughly a third of the size; colour detail halved (4:2:0) |
 | **Half size** | 2400 px, quality 88% | 1800×2400, ~35% |
 | **Small** | 1600 px, quality 82%, ≤400 KB each | 1200×1600 |
+
+### What "original quality" means
+
+1. **Untouched pages are the original file.** A page used as-is, with no tone change and no resize, is exported as the camera's own JPEG (or the original PNG): byte-identical image data, with only the EXIF/XMP metadata removed. The PDF embeds those same bytes. This is offered only when a strict reader will show the file exactly as the tool did — EXIF orientation 1, 3-channel — because many OCR pipelines ignore the orientation tag.
+2. **Changed pages are written at JPEG 100.** Chrome subsamples colour 4:2:0 at **every** quality below 1.0 (measured: 92%, 95% and 99% all write 4:2:0), so 100 is the only JPEG setting that keeps full colour resolution — it matters for red prices and thin coloured text. Pages from lossless sources (screenshots) stay PNG.
+3. **One resample per page, and a better one.** The perspective warp is Catmull-Rom bicubic (was bilinear), samples pixel centres (was half a pixel off), and folds any deskew rotation into the same mapping (was a second resampling pass).
+4. **The export matches the preview.** Sharpening and illumination-flattening are computed in page terms, so what you approve on screen is what lands in the file.
 
 **Nothing outside this step ever changes an image's resolution.** Changing how many pixels a file has is a decision, so it is made here or not at all — a job that never opens step 5 exports at the size it came in.
 
@@ -173,8 +183,8 @@ The PDF keeps its own separate cap:
 | Output | Default Limit | Why |
 | --- | --- | --- |
 | **Image** (longest edge) | *no cap by default* | Resolution is only changed from the Resize step. The 4200 px cap is available there, set above typical phone resolution. |
-| **PDF** (longest edge) | `2600 px` | The PDF is for reading and does not need full sensor resolution. |
-| **JPEG Quality** | `95%` | Matches what phone cameras typically write, so re-encoding is near-idempotent — measured at 61 dB PSNR against the source. |
+| **PDF** (longest edge) | *full resolution by default* | A cap (4200 – 1600 px) is available on the Export step for when the PDF is too heavy to upload. |
+| **JPEG Quality** | `100%` | The only setting at which the browser keeps full colour resolution. |
 
 ---
 
@@ -190,6 +200,7 @@ const CONFIG = {
   detectMinContrast:         60,     // Refuse below this page-to-surface contrast
   autoSeam:                  false,  // "Find seam automatically" button
   useOpenCV:                 false,  // Loads the 10 MB WASM bundle
+  autoEnhance:               true,   // Auto-enhance on arriving at Adjust (changes pixels)
   playful:                   true,   // Kitchen-verb progress, fortune cookie, easter eggs
 };
 ```
@@ -204,6 +215,7 @@ Only 1.0 onward carry a version string in the file; the 0.x labels are applied r
 
 | Version | Updates |
 | --- | --- |
+| **2.5** | **Original-quality export, measured end to end.** Default is now JPEG 100 (Chrome writes 4:2:0 colour at every quality below 1.0), untouched photos go out as the **original file** (metadata stripped, image data byte-identical), PNG sources stay PNG, and the **PDF embeds the same bytes at full resolution** (was re-encoded and capped at 2600 px: 31.4 → 35.4 dB against ground truth). **Bicubic warp** with pixel-centre sampling (+1.5 dB), **deskew folded into the warp** — one resample instead of two (+3.2 dB). **Export now matches the preview:** sharpening radius and the illumination field are computed in page terms (the export had been softer than the preview and 1.5–2 levels darker). **Security:** file names are escaped (a crafted name executed script), jsPDF/JSZip (loaded from jsDelivr/unpkg with no integrity hashes) removed, Content-Security-Policy blocks all network connections. **Fixed:** the Export step's "Lossless PNG" box did nothing (duplicate element id); the built-in PDF ignored the page-format setting; transparent PNGs exported with a black background; an encoder refusal crashed the export silently; deleting from the strip could not be undone; pages straightened after the first visit to Adjust were never auto-enhanced; a quarter turn re-warped an as-is page; Ctrl+Z in a text box undid the app; ZIP names are UTF-8-flagged and keep CJK characters; undo history has a memory budget. |
 | **2.4** | **Fixed: cropping a letterboxed screenshot destroyed its detail.** `warpJS` sized its pre-scale against the source *frame* rather than the *quad* it actually samples, so a menu occupying a quarter of a screenshot lost 42% of its linear resolution before the warp, then got upscaled back — 8% of the fine detail and 21.6 dB. Now pixel-identical for a 1:1 crop. **Resolution is no longer changed by default**: the Resize step is the only place it happens, and its default is *Original size*. |
 | **2.3** | **Fixed: the default resolution cap was softening every export.** Capping a 4032 px photo at 4000 px is a 0.992× resample — 1.6% fewer pixels for 18–51% of the fine detail, depending on the browser's filter. Added a **resample dead-band**: any trim under 3% is skipped entirely. Cap raised to **4200 px** (above phone resolution) and quality to **95%**, which matches what cameras write and makes the re-encode near-idempotent. Measured end-to-end on a 12 MP photo: **61 dB PSNR, no resample, 100% of the original file size** — up from a resampled 2.43 MB at 82% detail. |
 | **2.2** | Resize step reduced to **four preset buttons** (Full size / Standard / Half size / Small) with every slider moved into a collapsed **Fine tune** section. The sliders stay the single source of truth, so buttons and fine-tuning can never disagree; hand-tuning shows as *Custom*. |
