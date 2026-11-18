@@ -167,6 +167,17 @@ kbd{
 .btn.danger{color:var(--danger)}
 .btn.danger:hover:not(:disabled){background:#b3261e12;border-color:#b3261e55}
 .btn.sm{padding:6px 9px;font-size:11.5px}
+/* A key that does the same as the button, drawn ON the button. People were
+   not finding Enter: it was only listed on a card behind the ? key. The chip
+   takes the button's own text colour, so it works on filled, outlined and
+   hovered buttons without a rule for each. */
+.key{
+  display:inline-flex;align-items:center;gap:4px;flex:0 0 auto;margin-left:3px;
+  font-family:var(--mono);font-size:10px;font-weight:600;line-height:1;letter-spacing:.02em;
+  padding:3px 6px 2px;border:1px solid currentColor;border-bottom-width:2px;border-radius:4px;
+  opacity:.82;white-space:nowrap;
+}
+.btn:disabled .key{opacity:.5}
 .row{display:flex;gap:7px}
 .row > *{flex:1;min-width:0}
 .stack > * + *{margin-top:7px}
@@ -300,9 +311,18 @@ details.adv>summary.strong{color:var(--paper);font-size:10.5px}
 }
 .pcard:hover{border-color:var(--graphite-dim);box-shadow:0 2px 10px #00000012}
 .pcard.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
-.pcard.dragging{opacity:.35}
-.pcard.drop-before{box-shadow:-3px 0 0 var(--accent)}
-.pcard.drop-after{box-shadow:3px 0 0 var(--accent)}
+.pcard:active{cursor:grabbing}
+.pcard.dragging{opacity:.35;border-style:dashed;border-color:var(--accent)}
+/* Where the photo will land: a bar in the gap between two cards. It was a
+   3px shadow on the card's edge, easy to miss while your eyes are on the
+   photo you are carrying. */
+.pcard.drop-before,.pcard.drop-after{border-color:var(--accent);box-shadow:none}
+.pcard.drop-before::before,.pcard.drop-after::after{
+  content:'';position:absolute;top:-4px;bottom:-4px;width:5px;border-radius:3px;
+  background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft);pointer-events:none;
+}
+.pcard.drop-before::before{left:-12px}
+.pcard.drop-after::after{right:-12px}
 .pcard .th{
   display:block;width:100%;background:#fff;
   border:1px solid var(--line-soft);border-radius:3px;
@@ -323,11 +343,29 @@ details.adv>summary.strong{color:var(--paper);font-size:10.5px}
 }
 .pcard .mv button:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}
 .pcard .mv button:disabled{opacity:.3;cursor:not-allowed}
+/* The handle. Dragging was announced by a faint grey "drag" printed over
+   the photo; people did not see it. Now each card has a strip along the top
+   that looks like something to hold, and says so. The whole card still
+   drags — the strip is the invitation, not the only place that works. */
 .pcard .grip{
-  position:absolute;top:10px;left:50%;transform:translateX(-50%);
-  font-family:var(--mono);font-size:11px;color:var(--graphite-dim);letter-spacing:2px;
-  pointer-events:none;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  margin:-10px -10px 9px;padding:7px 8px;border-bottom:1px solid var(--line);
+  border-radius:var(--r) var(--r) 0 0;background:var(--press);
+  font-size:11.5px;font-weight:500;color:var(--graphite);
+  pointer-events:none;user-select:none;transition:background .12s,color .12s;
 }
+.pcard .grip i{
+  flex:0 0 auto;width:9px;height:14px;opacity:.75;
+  background:radial-gradient(circle,currentColor 1.3px,transparent 1.6px) 0 0/5px 5px;
+}
+.pcard:hover .grip,.pcard.on .grip{background:var(--accent-soft);color:var(--accent-hi);border-bottom-color:#0f766e33}
+.pcard.dragging .grip{background:var(--accent);color:#fff}
+/* Shown once, when the first batch of photos lands: the first two cards lean
+   toward each other and settle, so "these can swap" is seen, not read. */
+@keyframes lean-r{0%,100%{transform:none}35%,55%{transform:translateX(7px) rotate(.8deg)}}
+@keyframes lean-l{0%,100%{transform:none}35%,55%{transform:translateX(-7px) rotate(-.8deg)}}
+.pgrid.hint .pcard:nth-child(1){animation:lean-r 1.1s ease-in-out 1}
+.pgrid.hint .pcard:nth-child(2){animation:lean-l 1.1s ease-in-out 1}
 .pcard.out .seq{background:var(--graphite-dim)}
 .pcard.out{opacity:.55}
 .pcard .nm{
@@ -388,6 +426,15 @@ input[type=range].big::-moz-range-thumb{
   box-shadow:0 0 0 1.5px var(--accent),0 1px 4px #0000002e;
 }
 .strength-say{margin:4px 0 10px;font-size:12px;line-height:1.45;color:var(--graphite);min-height:35px}
+/* The follow-up most people want after settling one page. It was a small
+   grey button; now it is the card's own action, in the accent, and it says
+   exactly what it will do — the number and how many pages. */
+.btn.all{
+  width:100%;padding:9px 10px;background:var(--accent-soft);border:1.5px solid var(--accent);
+  color:var(--accent-hi);font-weight:600;font-size:12.5px;
+}
+.btn.all:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.all:disabled{opacity:1;background:none;border:1px dashed var(--line);color:var(--graphite);font-weight:500;cursor:default}
 
 .peek{
   display:flex;align-items:center;gap:12px;margin-top:14px;padding:11px 12px;
@@ -396,16 +443,20 @@ input[type=range].big::-moz-range-thumb{
 .peek > div{min-height:50px;display:flex;flex-direction:column;justify-content:center}   /* no jump between states */
 .peek b{display:block;font-size:13px;font-weight:600;line-height:1.3;color:var(--paper)}
 .peek span{display:block;font-size:11.5px;line-height:1.4;color:var(--graphite);margin-top:1px}
+/* The key is drawn in the tool's own teal, like every other thing here you
+   can press — it was white with a black outline, the only black-bordered
+   object in the interface, and looked pasted on. */
 .keycap{
-  flex:0 0 auto;width:46px;height:46px;display:grid;place-items:center;padding:0;cursor:pointer;
-  font-family:var(--mono);font-size:22px;font-weight:600;color:var(--paper);
-  background:#fff;border:1.5px solid var(--paper);border-bottom-width:5px;border-radius:8px;
+  flex:0 0 auto;width:44px;height:44px;display:grid;place-items:center;padding:0;cursor:pointer;
+  font-family:var(--mono);font-size:20px;font-weight:600;color:#fff;
+  background:var(--accent);border:0;border-bottom:4px solid var(--accent-hi);border-radius:8px;
   transition:transform .06s,border-bottom-width .06s,background .1s;touch-action:none;user-select:none;
 }
-.keycap:disabled{opacity:.3;cursor:not-allowed}
+.keycap:hover:not(:disabled){background:var(--accent-hi)}
+.keycap:disabled{background:var(--press-hi);border-bottom-color:var(--line);color:var(--graphite-dim);cursor:not-allowed}
 /* The key goes down, and amber, while the original is on screen — amber is
    already this tool's colour for "you are looking at BEFORE". */
-.peek.held .keycap{transform:translateY(3px);border-bottom-width:2px;background:var(--warn);border-color:var(--warn);color:#fff}
+.peek.held .keycap{transform:translateY(3px);border-bottom-width:1px;background:var(--warn);border-bottom-color:#7d4f08}
 .peek.held{border-color:var(--warn)}
 #cmp-chip{
   position:absolute;left:12px;bottom:12px;z-index:4;display:none;align-items:center;gap:8px;
@@ -414,11 +465,12 @@ input[type=range].big::-moz-range-thumb{
   font-size:12.5px;font-weight:500;color:var(--paper);backdrop-filter:blur(6px);
 }
 #cmp-chip.on{display:flex}
-#cmp-chip kbd{font-size:12px;font-weight:600;padding:2px 7px;border-radius:4px;background:#fff;border-color:var(--paper);border-bottom-width:2px}
+#cmp-chip kbd{font-size:12px;font-weight:600;padding:2px 7px;border-radius:4px;background:var(--accent);color:#fff;border:0;border-bottom:2px solid var(--accent-hi)}
 #cmp-chip.before{background:var(--warn);border-color:var(--warn);color:#fff;font-weight:600}
-#cmp-chip.before kbd{background:#ffffff33;border-color:#ffffff88;color:#fff}
+#cmp-chip.before kbd{background:#ffffff33;border-bottom-color:#ffffff66;color:#fff}
 
-/* ---------- Join: pick A and B from the strip ---------- */
+#order-grp{margin-top:18px}
+/* ---------- the guide box: Reorder (drag) and Join (pick A and B) ---------- */
 .pickguide{
   position:relative;border:1.5px solid var(--accent);border-radius:8px;background:var(--surface);
   box-shadow:0 0 0 4px var(--accent-soft);padding:12px 44px 12px 13px;
@@ -746,20 +798,25 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
     <!-- ─── 1 · STITCH ─── -->
     <section class="pane" data-pane="scan">
       <div class="eyebrow">Straighten this page</div>
-      <p class="hint">Drag the four circles onto the menu's corners, then flatten. A magnifier appears when you hover a circle.</p>
+      <!-- Everything for choosing the crop lives in one block, so the result
+           view can hide all of it. It used to hide only the two buttons and
+           leave their explanations and the "or" stranded on screen. -->
+      <div id="scan-edit">
+        <p class="hint">Drag the four circles onto the corners of the menu. Hover a circle for a magnifier.</p>
 
-      <button class="btn wide" id="btn-detect" style="display:none">Find the edges for me</button>
-      <div class="choices">
-        <button class="btn equal wide" id="btn-flatten">Flatten this page</button>
-        <div class="exp-why">The menu is at an angle, or there is background around it. Drag the four circles onto its corners first.</div>
-        <div class="orline">or</div>
-        <button class="btn equal wide" id="btn-asis">Use as-is</button>
-        <div class="exp-why">The photo is already square-on and cropped. Nothing is resampled, so this keeps every original pixel.</div>
+        <button class="btn wide" id="btn-detect" style="display:none;margin-bottom:8px">Find the edges for me</button>
+        <div class="choices">
+          <button class="btn equal wide" id="btn-flatten" title="Or press Enter">Crop &amp; flatten <span class="key">&crarr; Enter</span></button>
+          <div class="exp-why">Cuts away everything outside the four circles and squares the menu up. For a photo taken at an angle, or with the table showing around it.</div>
+          <div class="orline">or</div>
+          <button class="btn equal wide" id="btn-asis" title="Or press U">No crop &mdash; keep the whole photo <span class="key">U</span></button>
+          <div class="exp-why">The photo is already straight and shows only the menu. It stays exactly as it was taken &mdash; every original pixel.</div>
+        </div>
       </div>
 
       <div class="stack" id="scan-result" style="display:none;margin-top:10px">
-        <div class="note" style="border-left-color:var(--ok)">This is the flattened result. Happy with it?</div>
-        <button class="btn primary wide" id="btn-next-page">Next page</button>
+        <div class="note" style="border-left-color:var(--ok)">This is the page, cropped and flattened. Happy with it?</div>
+        <button class="btn primary wide" id="btn-next-page" title="Or press Enter">Next photo <span class="key">&crarr; Enter</span></button>
         <button class="btn wide" id="btn-edit-corners">Edit the corners again</button>
       </div>
 
@@ -821,7 +878,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         </div>
         <input type="range" class="big" id="s-strength" min="0" max="140" step="5" value="0" aria-describedby="strength-say">
         <p class="strength-say" id="strength-say">No enhancement. The page exports exactly as it left Straighten.</p>
-        <button type="button" class="btn sm wide" id="btn-strength-all">Use this strength on every page</button>
+        <button type="button" class="btn all" id="btn-strength-all">Use this strength on every page</button>
       </div>
 
       <div class="peek" id="peek">
@@ -973,17 +1030,21 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
         <input type="file" id="file" accept="image/*" multiple hidden>
       </div>
 
-      <div class="grp">
+      <div class="grp" id="order-grp" style="display:none">
         <div class="eyebrow">Put them in order</div>
-        <p class="hint">Drag the pages in the middle of the screen into the order you want them in the PDF. Everything downstream follows this order.</p>
-        <div class="row">
+        <div class="pickguide" id="order-guide">
+          <b>Drag a photo to move it</b>
+          <span>Pick up any photo on the right and drop it where it belongs. Number 1 becomes the first page of the PDF, and every later step follows this order.</span>
+          <div class="arrow" aria-hidden="true">&rarr;</div>
+        </div>
+        <div class="row" style="margin-top:10px">
           <button class="btn sm" id="btn-order-name">Sort by filename</button>
           <button class="btn sm" id="btn-order-rev">Reverse</button>
         </div>
       </div>
 
       <div class="pane-foot">
-        <button class="btn primary wide" id="btn-to-scan">2 &middot; Next — straighten them</button>
+        <button class="btn primary wide" id="btn-to-scan" title="Or press Enter">2 &middot; Next — straighten them <span class="key">&crarr; Enter</span></button>
       </div>
     </section>
 
@@ -1035,7 +1096,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       </details>
 
       <div class="grp">
-        <button class="btn primary wide" id="btn-join">Join into one page</button>
+        <button class="btn primary wide" id="btn-join" title="Or press Enter">Join into one page <span class="key">&crarr; Enter</span></button>
         <div class="note" style="margin-top:9px">The two halves are set aside, not deleted. Delete the joined page to get them back. You stay here afterwards, so you can join another pair.</div>
       </div>
 
@@ -1114,7 +1175,7 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
       </div>
 
       <div class="pane-foot">
-        <button class="btn primary wide" id="btn-size-next">6 &middot; Continue to export</button>
+        <button class="btn primary wide" id="btn-size-next" title="Or press Enter">6 &middot; Continue to export <span class="key">&crarr; Enter</span></button>
       </div>
     </section>
 
@@ -1133,14 +1194,14 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
 
         <div class="choices">
           <button class="btn equal wide" id="btn-zip-all">Export all images (ZIP)</button>
-          <div class="exp-why" id="all-why"><b>Images only</b>, flattened / straightened / cropped and <b>joined</b>.</div>
+          <div class="exp-why" id="all-why"><b>Images only</b>, cropped, straightened and <b>joined</b>.</div>
 
           <button class="btn equal wide" id="btn-pdf">Export PDF</button>
           <div class="exp-why"><b>PDF</b> for upload in <b>CMA</b>.</div>
 
           <div id="ocr-choice">
             <button class="btn equal wide" id="btn-zip-ocr">Export OCR set (ZIP)</button>
-            <div class="exp-why">For <b>OCR</b> use, cropped and flattened but <b>not joined</b>.</div>
+            <div class="exp-why">For <b>OCR</b> use, cropped and straightened but <b>not joined</b>.</div>
           </div>
           <div class="exp-why" id="ocr-absent" style="display:none;border-left-color:transparent;padding-left:0">Join two pages and a third button appears here for the un-joined OCR set. Until then it would be the same images as above.</div>
         </div>
@@ -1240,15 +1301,15 @@ body.is-busy #rail .steps{pointer-events:none;opacity:.55}
     <p class="mono" id="about-libs">—</p>
     <p class="lbl">Shortcuts</p>
     <table class="keys">
-      <tr><td>Enter</td><td>do the main thing on this step</td></tr>
+      <tr><td>Enter</td><td>press the main button on this step (it shows <b>&crarr; Enter</b>)</td></tr>
       <tr><td>[ &nbsp;]</td><td>previous / next photo</td></tr>
-      <tr><td>U</td><td>use the photo as-is, no crop</td></tr>
+      <tr><td>U</td><td>no crop &mdash; keep the whole photo</td></tr>
       <tr><td>, &nbsp;.</td><td>turn left / right</td></tr>
       <tr><td>A</td><td>auto-enhance all images</td></tr>
       <tr><td>R</td><td>reset this image</td></tr>
       <tr><td>D</td><td>difference view, when joining</td></tr>
       <tr><td>B</td><td>hold to peek at the original</td></tr>
-      <tr><td>1&ndash;5</td><td>jump to a step</td></tr>
+      <tr><td>1&ndash;6</td><td>jump to a step</td></tr>
       <tr><td>Scroll</td><td>zoom &middot; <b>Space</b>+drag to pan &middot; <b>0</b> to fit</td></tr>
       <tr><td>&larr;&uarr;&darr;&rarr;</td><td>nudge 1&nbsp;px &middot; <b>Shift</b> for 10</td></tr>
       <tr><td>Ctrl/&#8984; Z</td><td>undo &middot; <b>Shift</b> to redo</td></tr>
@@ -1328,7 +1389,7 @@ const EMPTY_PICK=pick(EMPTY_LINES);
 
 const APP={
   name:'Menu Scan',
-  version:'2.6',
+  version:'2.7',
   built:'2026-11-18',
   tagline:'photos to PDF & OCR'
 };
@@ -1847,7 +1908,10 @@ const S={
   spaceDown:false,
   startedAt:0,      // first import, for the session summary
   autoToned:false,  // auto-enhance has already had its one automatic run
-  dragPid:null
+  dragPid:null,
+  dragTaught:false, // the Reorder swap hint has played, or they have dragged
+  usedEnter:false,  // they have pressed Enter for a step's main button
+  mainClicks:0      // mouse clicks on those buttons, for the one-time tip
 };
 
 function newPage(canvas,name){
@@ -2280,7 +2344,12 @@ const Inbox={
       S.activeId=added[0].id; S.selCorner=-1;
       Join.userPicked=false; Join.parts=null;
       renderTray(); goStep(STEP.PAGES); Pages.draw();
-      toast(`${added.length} photo${added.length>1?'s':''} added. Drag them into order, then straighten.`);
+      toast(added.length>1?`${added.length} photos added. Drag them into order, then straighten.`
+                          :'1 photo added. Straighten it next, or add more.');
+      if(!S.dragTaught&&S.pages.length>1){
+        S.dragTaught=true;
+        setTimeout(()=>{ const g=$('#pagegrid .pgrid'); if(g&&S.step===STEP.PAGES) g.classList.add('hint'); },500);
+      }
     }
   }
 };
@@ -2380,6 +2449,10 @@ function renderFlatAt(p,k,fit){
 const Pages={
   draw(){
     const host=$('#pagegrid'); host.innerHTML='';
+    /* Nothing to order, and nothing for Next (or Enter) to act on, until
+       there are photos — so the pane does not offer either yet. */
+    $('#order-grp').style.display=S.pages.length?'':'none';
+    $('#btn-to-scan').disabled=!S.pages.length;
     if(!S.pages.length){
       const [big]=CONFIG.playful?EMPTY_PICK:EMPTY_LINES[0];
       host.innerHTML=`<div class="pgrid-empty">${big} — use <b>Add photos</b> on the left, `
@@ -2395,7 +2468,8 @@ const Pages={
 
     const head=document.createElement('div'); head.className='pgrid-head';
     head.innerHTML=`<h2>Put them in order</h2>`
-      +`<p>Drag a card, or use the <b>◀ ▶</b> buttons. Number <b>1</b> becomes the first page of the PDF.</p>`;
+      +(n>1?`<p><b>Drag</b> a photo to where it belongs, or use the <b>◀ ▶</b> buttons under it.</p>`
+           :`<p>Add more photos and you can drag them into order here.</p>`);
     host.appendChild(head);
 
     const grid=document.createElement('div'); grid.className='pgrid';
@@ -2407,7 +2481,7 @@ const Pages={
       el.draggable=true; el.dataset.pid=p.id;
       el.style.width=cardW+'px';
       el.innerHTML=`<span class="seq">${p.include?seq:'–'}</span>
-        <span class="grip">⠿ drag</span>
+        ${n>1?'<div class="grip"><i></i>Drag to move</div>':''}
         <canvas class="th" data-th="${p.id}" style="height:${thumbH}px"></canvas>
         <div class="nm" title="${esc(p.name)}">${esc(p.name)}</div>
         <div class="st"><span class="${p.flat?'yes':'no'}">${p.flat?'✓ straightened':'• to do'}</span>`
@@ -2437,7 +2511,8 @@ const Pages={
       });
       el.addEventListener('dblclick',()=>{ S.activeId=p.id; Crop.mode=p.flat?'result':'edit'; renderTray(); goStep(STEP.SCAN); });
       el.addEventListener('dragstart',ev=>{
-        S.dragPid=p.id; el.classList.add('dragging');
+        S.dragPid=p.id; el.classList.add('dragging'); S.dragTaught=true;
+        grid.classList.remove('hint');
         ev.dataTransfer.effectAllowed='move';
         try{ ev.dataTransfer.setData('text/plain',p.id); }catch(e){}
       });
@@ -3077,13 +3152,17 @@ const Crop={
        a dimmed original is exactly what made the result hard to picture. */
     const showResult=this.mode==='result'&&p.flat;
     $('#scan-result').style.display=showResult?'block':'none';
-    ['#btn-flatten','#btn-asis'].forEach(id=>{ $(id).style.display=showResult?'none':'flex'; });
-    $('#btn-detect').style.display=(CONFIG.autoDetect&&!showResult)?'flex':'none';
+    $('#scan-edit').style.display=showResult?'none':'block';
+    $('#btn-detect').style.display=CONFIG.autoDetect?'flex':'none';
     if(showResult){
       View.show(p.flat,52);
       const g=View.overlayCtx(); drawRulers(g);
       const done=S.pages.filter(x=>x.flat).length;
-      badge(`<b>${esc(p.name)}</b> · flattened to <b>${p.flat.width}×${p.flat.height}</b>`
+      /* The button said "Next page" even on the last one, where it actually
+         leaves the step. Say where it goes. */
+      $('#btn-next-page').innerHTML=(done<S.pages.length?'Next photo':'3 &middot; All done — on to adjust')
+        +' <span class="key">&crarr; Enter</span>';
+      badge(`<b>${esc(p.name)}</b> · cropped and flattened · <b>${p.flat.width}×${p.flat.height}</b>`
           + ` · ${done} of ${S.pages.length} done`);
       return;
     }
@@ -3131,7 +3210,7 @@ const Crop={
     if(live>=0) drawLoupe(g,C[live].x,C[live].y,this.touch);
 
     const o=this.outSize(p);
-    badge(`<b>${esc(p.name)}</b> · source ${p.raw.width}×${p.raw.height} · flattens to `
+    badge(`<b>${esc(p.name)}</b> · photo ${p.raw.width}×${p.raw.height} · crops to `
         + `<b>${o.W}×${o.H}</b>`
         + (p.turns?` · <b style="color:#00d3c0">turned ${p.turns*90}°</b>`:'')
         + (p.cornersVerified?'':' · <span style="color:#ffc247">corners unchecked</span>'));
@@ -3229,7 +3308,7 @@ const Crop={
     p.corners=res.found; S.selCorner=-1;
     p.cornersVerified=false;     // confident is not the same as correct
     this.draw();
-    if(!quiet) toast(`Edges found (${Math.round(c.contrast)} levels of contrast). Check each corner before flattening.`);
+    if(!quiet) toast(`Edges found (${Math.round(c.contrast)} levels of contrast). Check each corner before you crop.`);
     return true;
   },
 
@@ -3246,9 +3325,9 @@ const Crop={
   async flatten(opts){
     opts=opts||{};
     const p=activePage(); if(!p) return;
-    History.push('flatten “'+p.name+'”');
+    History.push('crop & flatten “'+p.name+'”');
     const {W,H}=this.outSize(p);
-    if(W*H>52e6){ toast('That flattens to '+W+'×'+H+' px — over 52 MP. Tighten the corners.','err'); return; }
+    if(W*H>52e6){ toast('That would come out at '+W+'×'+H+' px — over 52 MP. Bring the circles in closer.','err'); return; }
     await busy('Applying perspective transform',async()=>{
       await raf();
       let corners=p.corners.slice();
@@ -3277,7 +3356,7 @@ const Crop={
     if(opts.stay) return;
     const done=S.pages.filter(x=>x.flat).length;
     const left=S.pages.filter(x=>!x.flat).length;
-    toast(`Flattened to ${p.flat.width}×${p.flat.height}. ${done} of ${S.pages.length} done`
+    toast(`Cropped and flattened to ${p.flat.width}×${p.flat.height}. ${done} of ${S.pages.length} done`
         + (left?`, ${left} to go.`:' — all straightened.'));
   },
 
@@ -3285,7 +3364,7 @@ const Crop={
      straight from the source keeps them at zero resamples. */
   useAsIs(){
     const p=activePage(); if(!p) return;
-    History.push('use “'+p.name+'” as-is');
+    History.push('keep “'+p.name+'” uncropped');
     p.geom=null;
     p.asIs=true;
     p.corners=insetCorners(p.raw,0);
@@ -3297,7 +3376,7 @@ const Crop={
     /* No result view here. Flatten shows you the outcome because the warp
        changed something you need to check; use-as-is changed nothing, so
        stopping to ask "happy with it?" confirms nothing. Go straight on. */
-    this.nextPage(`Kept as-is at ${p.raw.width}×${p.raw.height} — nothing resampled.`);
+    this.nextPage(`Kept the whole photo, ${p.raw.width}×${p.raw.height} — no crop, nothing changed.`);
   },
 
   nextPage(prefix){
@@ -4442,6 +4521,16 @@ const Tone={
       : a.autoWhy==='bright'
         ? `Lighter than the usual ${usual}% — any more would start bleaching this page's whites.`
         : `Lighter than the usual ${usual}% — much of this image is picture or background, not paper, and that takes less.`;
+    /* The button names the number and the page count, so nobody has to work
+       out what "this strength" and "every page" come to. When pressing it
+       would change nothing, it says that instead of looking pressable. */
+    const all=S.pages.filter(x=>x.flat), btn=$('#btn-strength-all');
+    const same=all.every(x=>Math.abs(shownStrength(x)-v)<0.001);
+    btn.disabled=all.length<2||same;
+    btn.textContent = all.length<2 ? 'This is the only page'
+      : same ? (pct?`All ${all.length} pages are at ${pct}%`:`Enhancement is off on all ${all.length} pages`)
+      : pct  ? `Use ${pct}% on all ${all.length} pages`
+             : `Turn it off on all ${all.length} pages`;
   },
 
   /* The strength control works from any starting point. On an untouched
@@ -5316,15 +5405,15 @@ const Exporter={
     const crops=pages.reduce((a,p)=>a+p.regions.length,0);
     const px=pages.reduce((a,p)=>a+p.flat.width*p.flat.height,0);
     $('#summary').innerHTML=
-      `pages flattened <b>${pages.length}</b> of ${S.pages.length}<br>`+
+      `pages straightened <b>${pages.length}</b> of ${S.pages.length}<br>`+
       `crop regions <b>${crops}</b><br>`+
       `total pixels <b>${(px/1e6).toFixed(1)} MP</b>`+
       (S.pages.some(x=>x.flat&&!x.include)?`<br><span style="color:#8d95a5">`
         +`${S.pages.filter(x=>x.flat&&!x.include).length} page(s) held back</span>`:'')+
       sessionLine()+
       (pages.filter(pg=>!pg.cornersVerified).length?`<br><span style="color:#ffc247">`
-        +`${pages.filter(pg=>!pg.cornersVerified).length} flattened from auto-detected corners — not checked</span>`:'')+
-      (S.pages.length-pages.length?`<br><span style="color:#ff5f5f">${S.pages.length-pages.length} page(s) not yet flattened</span>`:'');
+        +`${pages.filter(pg=>!pg.cornersVerified).length} cropped from auto-detected corners — not checked</span>`:'')+
+      (S.pages.length-pages.length?`<br><span style="color:#ff5f5f">${S.pages.length-pages.length} page(s) not yet straightened</span>`:'');
     const joined=hasJoins();
     $('#btn-pdf').disabled=!pages.length;
     $('#btn-zip-all').disabled=!pages.length;
@@ -5335,8 +5424,8 @@ const Exporter={
     $('#ocr-absent').style.display=joined?'none':'block';
     $('#ocr-hint').style.display=joined?'none':'block';
     $('#all-why').innerHTML=joined
-      ? '<b>Images only</b>, flattened / straightened / cropped and <b>joined</b>.'
-      : '<b>Images only</b>, flattened / straightened / cropped. Nothing was joined, so this is also the set for the parser.';
+      ? '<b>Images only</b>, cropped, straightened and <b>joined</b>.'
+      : '<b>Images only</b>, cropped and straightened. Nothing was joined, so this is also the set for the parser.';
   },
 
   /* Resize settings, read once so a whole export run is consistent. */
@@ -5736,7 +5825,7 @@ function renderTray(){
     el.innerHTML=`<div class="im" style="background-image:url(${p.thumb||''})"></div>
       <div class="cap"><span>${seq?pad(seq):'—'}</span><span>${p.flat?p.flat.width+'w':'raw'}</span></div>
       <button class="pick" title="${p.include?'Leave out of the export':'Add to the export'}">${p.include?'✓':''}</button>
-      ${p.flat?'<span class="ok" title="Flattened">✓</span>':'<span class="todo" title="Not flattened yet">•</span>'}
+      ${p.flat?'<span class="ok" title="Straightened">✓</span>':'<span class="todo" title="Not straightened yet">•</span>'}
       ${p.joinedFrom?'<span class="jtag">joined</span>':''}
       ${p.regions.length?`<span class="rgn">${p.regions.length}</span>`:''}
       ${p.flat&&!p.cornersVerified?'<span class="unver" title="Corners auto-detected, never checked">!</span>':''}
@@ -5820,7 +5909,7 @@ function renderTray(){
   const flat=S.pages.filter(p=>p.flat).length;
   const crops=S.pages.reduce((a,p)=>a+p.regions.length,0);
   $('#tray-meta').innerHTML=`<b>${S.pages.length}</b> page${S.pages.length>1?'s':''}`
-    +` · <b>${flat}</b> flattened · <b>${going.length}</b> going out`
+    +` · <b>${flat}</b> straightened · <b>${going.length}</b> going out`
     +(crops?` · <b>${crops}</b> crop${crops===1?'':'s'}`:'');
   updateStepStates();
 }
@@ -5864,9 +5953,9 @@ function goStep(name){
   if(!FLOW.includes(name)) name=STEP.SCAN;
   const p=activePage();
   if(!STEP_META[name].need(p)){
-    if(name===STEP.JOIN) toast('Join needs two flattened pages. Straighten each photo in step 1 first.','warn');
+    if(name===STEP.JOIN) toast('Join needs two straightened pages. Do step 2, Straighten, for each photo first.','warn');
     else if(!p) toast('Add a photo first.','warn');
-    else toast('Flatten this page first (step 1).','warn');
+    else toast('Straighten this photo first (step 2).','warn');
     return;
   }
   const was=S.step;
@@ -6047,9 +6136,19 @@ function wire(){
     if(p&&p.flat) await Crop.flatten({stay:true});
   });
   $('#c-force-portrait').addEventListener('change',()=>Crop.draw());
-  $('#btn-flatten').addEventListener('click',()=>Crop.flatten());
+  /* Straighten is the step people repeat for every photo, and the one where
+     Enter saves the most. The key is printed on the button; for anyone who
+     still clicks their way through, say it once — on the third click, after
+     the toast for that click has gone. */
+  const enterTip=ev=>{
+    if(!ev.isTrusted||S.usedEnter||S.mainClicks<0) return;
+    if(++S.mainClicks<3) return;
+    S.mainClicks=-1;
+    setTimeout(()=>{ if(!S.usedEnter) toast('Tip: the Enter key presses the main button for you — no need to click it.'); },3200);
+  };
+  $('#btn-flatten').addEventListener('click',ev=>{ Crop.flatten(); enterTip(ev); });
   $('#btn-asis').addEventListener('click',()=>Crop.useAsIs());
-  $('#btn-next-page').addEventListener('click',()=>Crop.nextPage());
+  $('#btn-next-page').addEventListener('click',ev=>{ Crop.nextPage(); enterTip(ev); });
   $('#btn-edit-corners').addEventListener('click',()=>{ Crop.mode='edit'; View.resetView(); Crop.draw(); });
 
   /* enhancement pane */
@@ -6285,6 +6384,11 @@ function wire(){
   $('#btn-turn-back').addEventListener('click',()=>turn(-1));
 
   /* keyboard */
+  /* How focus got to where it is: by Tab, or left behind by a mouse click.
+     Enter needs to know (see below). */
+  let tabbed=false;
+  document.addEventListener('keydown',ev=>{ if(ev.key==='Tab') tabbed=true; },true);
+  document.addEventListener('pointerdown',()=>{ tabbed=false; },true);
   document.addEventListener('keydown',ev=>{
     const z=(ev.key==='z'||ev.key==='Z'), y=(ev.key==='y'||ev.key==='Y');
     /* Ctrl+Z in a box you are typing in is the text's own undo. The app
@@ -6314,9 +6418,15 @@ function wire(){
     /* Enter is the primary action for the step you are on. On Straighten that
        makes the whole loop Enter, Enter, Enter: flatten, next photo, flatten.
        Deliberately unbound on Adjust (two equally valid exits) and on Export
-       (nothing there should fire by accident). */
+       (nothing there should fire by accident).
+       One exception: someone who has Tabbed to a button means THAT button, so
+       Enter is left to the browser. A button that merely kept focus after a
+       mouse click does not count — otherwise clicking Rotate and pressing
+       Enter would rotate again instead of moving on. */
     if(ev.key==='Enter'){
+      if(tabbed&&el&&/^(BUTTON|A|SUMMARY)$/.test(el.tagName)) return;
       const p=activePage();
+      S.usedEnter=true;                         // they know; no need for the tip
       if(S.step===STEP.PAGES&&S.pages.length){ ev.preventDefault(); $('#btn-to-scan').click(); return; }
       if(S.step===STEP.SCAN&&p){
         ev.preventDefault();
@@ -6324,6 +6434,7 @@ function wire(){
         return;
       }
       if(S.step===STEP.JOIN&&!$('#btn-join').disabled){ ev.preventDefault(); Join.commit(); return; }
+      if(S.step===STEP.SIZE){ ev.preventDefault(); goStep(STEP.EXPORT); return; }
       return;
     }
     if(ev.key==='['){ ev.preventDefault(); Crop.hop(-1); return; }
